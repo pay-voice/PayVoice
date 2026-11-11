@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PayPal Standard Checkout Integration</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo-group">
+        <svg width="100" height="30" viewBox="0 0 127 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M38.7467 10.3502C38.7467 15.29 34.1861 21.1295 27.2961 21.1295H20.6583L20.3368 23.1871L18.7851 33.1072H10.5264L15.4912 1.16797H28.867C33.3679 1.16797 36.9159 3.68412 38.2134 7.17898C38.5811 8.16925 38.7678 9.23852 38.7467 10.3502Z" fill="#002991"/>
+          <path d="M43.5093 19.5338C42.5968 25.0728 37.8341 29.1167 32.2108 29.1167H27.6001L25.675 41.0944H17.4663L18.7831 33.1086L20.3347 23.1885L20.6562 21.1309H27.294C34.184 21.1309 38.7446 15.2914 38.7446 10.3516C38.7446 10.3516 38.7485 10.3516 38.7485 10.3535C42.1405 12.1009 44.1138 15.6439 43.5074 19.5338H43.5093Z" fill="#60CDFF"/>
+          <path d="M38.7466 10.3507C37.3278 9.60124 35.6048 9.15234 33.7298 9.15234H22.5333L20.6582 21.1301H27.296C34.186 21.1301 38.7466 15.2905 38.7466 10.3507Z" fill="#008CFF"/>
+        </svg>
+        <h1>Checkout Panel</h1>
+      </div>
+      <span class="badge" id="env-badge">Sandbox Mode</span>
+    </header>
+
+    <div class="grid">
+      <!-- Checkout Box -->
+      <div class="card">
+        <h2>Order Summary</h2>
+        <div class="cart-items">
+          <div class="cart-item">
+            <div class="item-details">
+              <h3>Wheat Grain Grade-A (Bulk)</h3>
+              <p>Lot #AM-2026-981 &bull; 100 kg</p>
+            </div>
+            <div class="item-price">$75.00</div>
+          </div>
+          <div class="cart-item">
+            <div class="item-details">
+              <h3>Mandated Inspection & Logistics</h3>
+              <p>Express Agricultural Dispatch</p>
+            </div>
+            <div class="item-price">$25.00</div>
+          </div>
+        </div>
+
+        <div class="cart-total">
+          <span>Total Due:</span>
+          <span style="color: #0070ba;">$100.00 USD</span>
+        </div>
+
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;" />
+
+        <div id="credentials-warning" class="config-notice" style="display: none;">
+          <strong>Configuration Action Required:</strong>
+          Please update your <code>PAYPAL_CLIENT_ID</code> and <code>PAYPAL_CLIENT_SECRET</code> in the <code>.env</code> file. Currently using sandbox placeholder.
+        </div>
+
+        <!-- PayPal Buttons Mount Target -->
+        <div id="paypal-button-container"></div>
+
+        <!-- Result / Receipt Card -->
+        <div id="result-card" class="result-card">
+          <div class="result-header" id="result-title"></div>
+          <div class="result-body" id="result-content"></div>
+          <pre id="json-viewer" class="json-viewer"></pre>
+        </div>
+      </div>
+
+      <!-- Integration Guide Card -->
+      <div class="card">
+        <h2>Flow Checklist</h2>
+        <div class="steps-list">
+          <div class="step-card">
+            <div class="step-number">1</div>
+            <div class="step-text">
+              <h4>Open PayPal Checkout</h4>
+              <p>Sign in at <a href="https://developer.paypal.com/dashboard/" target="_blank" style="color: #0070ba;">developer.paypal.com</a> and navigate to Apps & Credentials.</p>
+            </div>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">2</div>
+            <div class="step-text">
+              <h4>Follow Integration Guide</h4>
+              <p>The standard flow requires backend Order Creation and Capture endpoints using the PayPal Orders v2 REST API.</p>
+            </div>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">3</div>
+            <div class="step-text">
+              <h4>Configure Client ID</h4>
+              <p>Save your App's Sandbox Client ID & Secret in <code>Paypal/.env</code>.</p>
+            </div>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">4</div>
+            <div class="step-text">
+              <h4>Backend Order & Capture</h4>
+              <p>Backend exposes <code>POST /api/orders</code> and <code>POST /api/orders/:orderID/capture</code> with bearer token authorization.</p>
+            </div>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">5</div>
+            <div class="step-text">
+              <h4>Test with Personal Sandbox Buyer</h4>
+              <p>Log in using your Sandbox Personal Account credentials in the PayPal modal to approve and complete payment.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

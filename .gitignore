@@ -4,6 +4,8 @@
 .env.*.local
 *.pem
 *.key
+server/data/vault.enc.json
+*.enc.json
 
 # Dependencies
 node_modules/
