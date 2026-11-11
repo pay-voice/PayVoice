@@ -1,0 +1,27 @@
+# Environment & Secrets (NEVER commit real credentials)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production & Build outputs
+dist/
+build/
+out/
+
+# Logs & temp
+logs/
+*.log
+temp/
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
