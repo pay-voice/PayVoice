@@ -5,6 +5,7 @@
 *.pem
 *.key
 server/data/vault.enc.json
+server/data/*.json
 *.enc.json
 
 # Dependencies

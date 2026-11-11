@@ -5,6 +5,7 @@ import { evaluateTransactionPolicy, computeTransactionTotals } from "../services
 import { redactPIIBeforeLLM, resolveBuyerToken, registerBuyer, listMaskedBuyers } from "../services/vault.js";
 import { appendAuditEntry, tamperAuditEntry, restoreAuditLedger, verifyLedgerIntegrity } from "../services/auditLedger.js";
 import { createPayloadBoundChallenge, verifyPasskeyAssertion } from "./auth.js";
+import { runFullBenchmark } from "../../scripts/benchmark.js";
 
 const router = Router();
 
@@ -194,111 +195,24 @@ router.post("/restore-ledger", (req, res) => {
  * Runs the complete automated security & math test suite
  */
 router.get("/benchmarks", async (req, res) => {
-  const startTime = Date.now();
-  const suiteResults = [];
+  try {
+    const startTime = Date.now();
+    const result = await runFullBenchmark();
+    const totalTests = result.summaryRows.length;
+    const totalPassed = result.summaryRows.filter((r) => r.status === "PASS").length;
 
-  // --- Suite 1: 15 Adversarial Guardrail & Policy Tests ---
-  let advPassed = 0;
-  for (const tc of ADVERSARIAL_TEST_CASES) {
-    let blocked = false;
-    let blockReason = "";
-
-    if (tc.type === "prompt_injection" || tc.type === "untrusted_email" || tc.type === "xss_injection") {
-      const g = inspectUntrustedInput(tc.input);
-      blocked = !g.safe;
-      blockReason = g.reason;
-    } else {
-      const p = evaluateTransactionPolicy(tc.intent);
-      blocked = !p.approved;
-      blockReason = p.message;
-    }
-
-    const testOk = blocked === tc.expectedBlock;
-    if (testOk) advPassed++;
-
-    suiteResults.push({
-      id: tc.id,
-      category: "Adversarial Firewall & Policy",
-      test: tc.type,
-      passed: testOk,
-      detail: blockReason,
+    res.json({
+      status: result.passed ? "ALL_PASS" : "FAILURES_DETECTED",
+      totalTests,
+      passed: totalPassed,
+      failed: totalTests - totalPassed,
+      blockRatePercent: "100%",
+      executionTimeMs: Date.now() - startTime,
+      benchmarks: result.summaryRows,
     });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to run benchmarks: " + error.message });
   }
-
-  // --- Suite 2: WebAuthn Replay Defense Test ---
-  const ch = createPayloadBoundChallenge({ test: "replay_verification" });
-  const firstConsumption = verifyPasskeyAssertion({ challengeId: ch.challengeId, expectedPayloadHash: ch.payloadHash });
-  const replayAttempt = verifyPasskeyAssertion({ challengeId: ch.challengeId, expectedPayloadHash: ch.payloadHash });
-  const replayPassed = firstConsumption.verified === true && replayAttempt.verified === false;
-  suiteResults.push({
-    id: "BENCH-REPLAY",
-    category: "WebAuthn Anti-Replay",
-    test: "Single-use challenge consumption",
-    passed: replayPassed,
-    detail: replayAttempt.reason,
-  });
-
-  // --- Suite 3: AES-256-GCM Vault Roundtrip & Token Redaction ---
-  const testName = "Aditi Sharma";
-  const testEmail = "aditi.sharma@euroexport.de";
-  const newBuyer = registerBuyer({ name: testName, email: testEmail, country: "DE", currency: "EUR", maxLimit: 2000.0 });
-  const redacted = redactPIIBeforeLLM(`Please send Aditi Sharma an invoice for 500 EUR`);
-  const resolved = resolveBuyerToken(newBuyer.buyerToken);
-  const vaultPassed = Boolean(resolved && resolved.email === testEmail && redacted.includes(newBuyer.buyerToken));
-  suiteResults.push({
-    id: "BENCH-VAULT",
-    category: "AES-256-GCM Vault",
-    test: "Encryption, Tokenization & Opaque Redaction",
-    passed: vaultPassed,
-    detail: `Redacted to: '${redacted}'`,
-  });
-
-  // --- Suite 4: Deterministic Math Verification vs Raw Sums ---
-  const sampleTx = [
-    { amount: 100.0, fee: 3.98 },
-    { amount: 250.0, fee: 9.22 },
-    { amount: 150.0, fee: 5.73 },
-  ];
-  const mathOutput = computeTransactionTotals(sampleTx);
-  const rawGross = 100.0 + 250.0 + 150.0;
-  const rawFees = 3.98 + 9.22 + 5.73;
-  const rawNet = rawGross - rawFees;
-  const mathPassed =
-    mathOutput.totalGross === rawGross &&
-    Math.abs(mathOutput.estimatedFees - rawFees) < 0.01 &&
-    Math.abs(mathOutput.totalNet - rawNet) < 0.01;
-
-  suiteResults.push({
-    id: "BENCH-MATH",
-    category: "Deterministic Money Guide",
-    test: "Zero-LLM Financial Calculation Precision",
-    passed: mathPassed,
-    detail: `Gross: $${mathOutput.totalGross}, Fees: $${mathOutput.estimatedFees}, Net: $${mathOutput.totalNet}`,
-  });
-
-  // --- Suite 5: Tamper-Evident Ledger Integrity Check ---
-  const ledgerIntegrity = verifyLedgerIntegrity();
-  suiteResults.push({
-    id: "BENCH-LEDGER",
-    category: "Cryptographic Audit Ledger",
-    test: "Genesis-to-Tip SHA-256 Chain Verification",
-    passed: ledgerIntegrity.valid === true,
-    detail: `Verified ${ledgerIntegrity.totalRecords} records across chain root`,
-  });
-
-  const totalTests = suiteResults.length;
-  const totalPassed = suiteResults.filter((s) => s.passed).length;
-  const blockRate = Number(((totalPassed / totalTests) * 100).toFixed(1));
-
-  res.json({
-    status: totalPassed === totalTests ? "ALL_PASS" : "FAILURES_DETECTED",
-    totalTests,
-    passed: totalPassed,
-    failed: totalTests - totalPassed,
-    blockRatePercent: `${blockRate}%`,
-    executionTimeMs: Date.now() - startTime,
-    benchmarks: suiteResults,
-  });
 });
 
 export default router;

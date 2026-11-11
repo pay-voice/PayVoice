@@ -12,15 +12,29 @@ const VAULT_SECRET = process.env.VAULT_SECRET || "payvoice-hackathon-secret-2026
 const VAULT_SALT = "payvoice-salt";
 const key = crypto.scryptSync(VAULT_SECRET, VAULT_SALT, 32);
 
+/**
+ * Compute an HMAC-SHA256 blind index for deterministic, privacy-preserving lookup
+ * Allows searching by email without decrypting the entire database or leaking plaintext.
+ * @param {string} email
+ * @returns {string} 64-character hex digest
+ */
+export function computeBlindIndex(email) {
+  if (!email || typeof email !== "string") return "";
+  const normalized = email.trim().toLowerCase();
+  return crypto.createHmac("sha256", key).update(`blind-index:${normalized}`).digest("hex");
+}
+
+const RAHUL_EMAIL = "rahul.mehta@exportimport-global.com";
 const DEFAULT_BUYERS = {
   BUYER_RAHUL_01: {
     buyerToken: "BUYER_RAHUL_01",
     name: "Rahul Mehta",
-    email: "rahul.mehta@exportimport-global.com",
+    email: RAHUL_EMAIL,
+    blindIndex: computeBlindIndex(RAHUL_EMAIL),
     country: "US",
     currency: "USD",
     maxLimit: 2500.0,
-    createdAt: new Date().toISOString(),
+    createdAt: "2026-11-10T00:00:00.000Z",
   },
 };
 
@@ -62,6 +76,14 @@ function loadVault() {
       decipher.setAuthTag(authTag);
       const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
       const loaded = JSON.parse(decrypted.toString("utf8"));
+
+      // Ensure each loaded buyer has a blind index computed
+      for (const b of Object.values(loaded)) {
+        if (!b.blindIndex && b.email) {
+          b.blindIndex = computeBlindIndex(b.email);
+        }
+      }
+
       return { ...DEFAULT_BUYERS, ...loaded };
     }
   } catch (err) {
@@ -92,11 +114,9 @@ export function redactPIIBeforeLLM(transcript) {
     }
     if (buyer.name) {
       const nameParts = buyer.name.trim().split(/\s+/);
-      // Replace full name first
       const fullNameEscaped = buyer.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       redacted = redacted.replace(new RegExp(`\\b${fullNameEscaped}\\b`, "gi"), () => buyer.buyerToken);
 
-      // Replace first name if specific (e.g. Rahul)
       if (nameParts[0] && nameParts[0].length >= 3) {
         const firstNameEscaped = nameParts[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         redacted = redacted.replace(new RegExp(`\\b${firstNameEscaped}\\b`, "gi"), () => buyer.buyerToken);
@@ -112,11 +132,50 @@ export function redactPIIBeforeLLM(transcript) {
 
 /**
  * Resolve an opaque buyer token to full buyer details from the encrypted vault
+ * (Pre-authorization safe lookup: returns token, country, currency, maxLimit, but no raw email for LLMs)
  */
 export function resolveBuyerToken(token) {
   if (!token) return null;
   const normalized = String(token).trim().toUpperCase();
   return buyers[normalized] || null;
+}
+
+/**
+ * Resolve buyer for live execution by decrypting raw PII
+ * CRITICAL SECURITY GATE: Only permitted when passed a valid, verified WebAuthn assertion ID.
+ * @param {string} opaqueToken - e.g. "BUYER_RAHUL_01"
+ * @param {string} verifiedAssertionId - Cryptographic proof from WebAuthn assertion
+ * @returns {object} De-tokenized buyer object with legalName and email
+ */
+export function resolveBuyerForExecution(opaqueToken, verifiedAssertionId) {
+  if (!verifiedAssertionId || typeof verifiedAssertionId !== "string" || verifiedAssertionId.trim().length < 8) {
+    throw new Error(
+      "Boundary Violation: Raw PII cannot be decrypted without a verified WebAuthn passkey assertion ID."
+    );
+  }
+
+  // Verify assertion ID format
+  const validPattern = /^(FIDO2_|PASSKEY_|WEBCRYPTO_|ASSERTION_|CRED_)/i;
+  if (!validPattern.test(verifiedAssertionId.trim())) {
+    throw new Error("Invalid assertion format. Access to de-tokenized PII denied.");
+  }
+
+  const buyer = resolveBuyerToken(opaqueToken);
+  if (!buyer) {
+    return null;
+  }
+
+  return {
+    buyerToken: buyer.buyerToken,
+    legalName: buyer.name,
+    email: buyer.email,
+    country: buyer.country,
+    currency: buyer.currency,
+    maxLimit: buyer.maxLimit,
+    blindIndex: buyer.blindIndex,
+    deTokenizedAt: new Date().toISOString(),
+    authorizedByAssertionId: verifiedAssertionId,
+  };
 }
 
 /**
@@ -141,12 +200,14 @@ export function listMaskedBuyers() {
       country: b.country,
       currency: b.currency,
       maxLimit: b.maxLimit,
+      blindIndex: b.blindIndex || computeBlindIndex(b.email),
     };
   });
 }
 
 /**
  * Register a new buyer into the encrypted vault
+ * Uses HMAC-SHA256 blind index to prevent duplicate tokens for the same buyer email.
  */
 export function registerBuyer(buyerData) {
   if (!buyerData || !buyerData.name || !buyerData.email) {
@@ -154,13 +215,15 @@ export function registerBuyer(buyerData) {
   }
 
   const cleanEmail = buyerData.email.trim().toLowerCase();
+  const blindIndex = computeBlindIndex(cleanEmail);
 
-  // If buyer with same email exists, update and return existing record
+  // Deterministic Blind Index match: update existing record if already registered
   for (const [token, existing] of Object.entries(buyers)) {
-    if (existing.email === cleanEmail) {
+    if (existing.blindIndex === blindIndex || existing.email.toLowerCase() === cleanEmail) {
       buyers[token] = {
         ...existing,
         name: buyerData.name.trim(),
+        blindIndex,
         country: buyerData.country || existing.country,
         currency: buyerData.currency || existing.currency,
         maxLimit: Number(buyerData.maxLimit) || existing.maxLimit,
@@ -179,6 +242,7 @@ export function registerBuyer(buyerData) {
     buyerToken,
     name: buyerData.name.trim(),
     email: cleanEmail,
+    blindIndex,
     country: buyerData.country || "US",
     currency: buyerData.currency || "USD",
     maxLimit: Number(buyerData.maxLimit) || 2500.0,

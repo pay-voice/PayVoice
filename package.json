@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "benchmark": "node server/tests/run-benchmarks.js"
+    "benchmark": "node scripts/benchmark.js"
   },
   "dependencies": {
     "@paypal/agent-toolkit": "^1.11.0",
