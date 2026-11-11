@@ -6,6 +6,7 @@ import { redactPIIBeforeLLM, resolveBuyerToken, registerBuyer, listMaskedBuyers 
 import { appendAuditEntry, tamperAuditEntry, restoreAuditLedger, verifyLedgerIntegrity } from "../services/auditLedger.js";
 import { createPayloadBoundChallenge, verifyPasskeyAssertion } from "./auth.js";
 import { runFullBenchmark } from "../../scripts/benchmark.js";
+import { runLifecycleTrace } from "../../scripts/lifecycle-trace.js";
 
 const router = Router();
 
@@ -212,6 +213,24 @@ router.get("/benchmarks", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to run benchmarks: " + error.message });
+  }
+});
+
+/**
+ * GET /api/security/lifecycle-trace
+ * Runs the authentic 7-step sandbox lifecycle trace from Page 4 of the submission deck
+ */
+router.get("/lifecycle-trace", async (req, res) => {
+  try {
+    const trace = await runLifecycleTrace();
+    res.json({
+      success: trace.success,
+      executionTimeMs: trace.executionTimeMs,
+      ledgerIntegrity: trace.ledgerIntegrity,
+      steps: trace.steps,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Failed to run lifecycle trace: " + error.message });
   }
 });
 

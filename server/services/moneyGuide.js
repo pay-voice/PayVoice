@@ -19,6 +19,62 @@ function cleanOldInvoices() {
 }
 
 /**
+ * Dynamic RBI Purpose Code & DGFT IEC Enforcement Classifier
+ * Categorizes cross-border transactions:
+ *   - Physical/Agricultural Goods: P0103 (requires valid 10-char alphanumeric IEC)
+ *   - Digital/Freelance Services: P0802 (exempt from physical cargo IEC requirement)
+ *
+ * @param {string} itemDescription
+ * @param {string} [merchantIec]
+ * @returns {{ purposeCode: string, category: "GOODS" | "SERVICES", description: string, iecRequired: boolean, iecValid: boolean, merchantIec: string }}
+ */
+export function classifyRbiPurposeCode(itemDescription = "", merchantIec = null) {
+  const norm = String(itemDescription || "").toLowerCase().trim();
+
+  const goodsKeywords = [
+    "wheat", "grain", "cotton", "seed", "seeds", "rice", "basmati", "soybean",
+    "spice", "spices", "tea", "coffee", "textile", "fabric", "garment",
+    "handicraft", "leather", "machinery", "equipment", "hardware", "goods",
+    "crop", "produce", "organic", "fertilizer", "soil", "cargo", "shipment",
+    "dispatch", "lot", "agri", "commodity", "pack", "गहू", "गेहूँ", "सोयाबीन",
+    "तांदूळ", "चावल", "कपास", "बियाणे", "बीज", "मसाले", "मसाला",
+  ];
+
+  const servicesKeywords = [
+    "software", "consulting", "consultancy", "code", "development", "dev",
+    "ui/ux", "design", "api", "cloud", "saas", "frontend", "backend",
+    "full-stack", "testing", "qa", "freelance", "translation", "audit",
+    "support", "license", "maintenance", "service", "services", "analytics", "engineering",
+  ];
+
+  const isExplicitService = servicesKeywords.some((kw) => norm.includes(kw));
+  const isGoods = !isExplicitService && goodsKeywords.some((kw) => norm.includes(kw));
+
+  const resolvedIec = merchantIec || process.env.MERCHANT_IEC || "0319088821";
+  const isIecFormatValid = /^[A-Z0-9]{10}$/.test(String(resolvedIec).trim().toUpperCase());
+
+  if (isGoods) {
+    return {
+      purposeCode: "P0103",
+      category: "GOODS",
+      description: "Export of Goods (Physical Cargo / OPGSP Guidelines)",
+      iecRequired: true,
+      iecValid: isIecFormatValid,
+      merchantIec: isIecFormatValid ? String(resolvedIec).trim().toUpperCase() : "INVALID_IEC",
+    };
+  }
+
+  return {
+    purposeCode: "P0802",
+    category: "SERVICES",
+    description: "Software & Consultancy Services (Cross-Border Non-Physical)",
+    iecRequired: false,
+    iecValid: true,
+    merchantIec: "EXEMPT_SERVICES",
+  };
+}
+
+/**
  * Deterministic Money Guide AI Policy Engine
  * Runs strict deterministic financial validation - Zero LLM hallucination risk.
  * @param {object} intent - { buyer_token, item, amount, currency, quantity, readBackConfirmed }
@@ -122,6 +178,8 @@ export function evaluateTransactionPolicy(intent, options = {}) {
   // Record this staged invoice in the idempotency cache
   recentInvoices.set(idempotencyKey, now);
 
+  const rbiClassification = classifyRbiPurposeCode(normalizedItem, options.merchantIec);
+
   return {
     approved: true,
     policyViolation: null,
@@ -134,6 +192,10 @@ export function evaluateTransactionPolicy(intent, options = {}) {
       currency: normCurrency,
       item: normalizedItem,
       idempotencyKey,
+      rbiPurposeCode: rbiClassification.purposeCode,
+      rbiCategory: rbiClassification.category,
+      rbiDescription: rbiClassification.description,
+      merchantIec: rbiClassification.merchantIec,
       evaluatedAt: new Date().toISOString(),
     },
   };

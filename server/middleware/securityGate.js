@@ -14,6 +14,7 @@ import { evaluateTransactionPolicy } from "../services/moneyGuide.js";
 import { resolveBuyerForExecution } from "../services/vault.js";
 import { verifyPasskeyAssertion } from "../routes/auth.js";
 import { appendAuditEntry } from "../services/auditLedger.js";
+import { issueSecurityExecutionTicket } from "../services/secureToolkitWrapper.js";
 
 export function requireStepUpSecurityGate(req, res, next) {
   try {
@@ -130,7 +131,16 @@ export function requireStepUpSecurityGate(req, res, next) {
       });
     }
 
-    // 5. Append AUTHORIZED entry to immutable audit ledger
+    // 5. Issue cryptographic single-use execution ticket for write operations
+    const securityExecutionTicket = issueSecurityExecutionTicket({
+      assertionId: authResult.assertionId,
+      buyerToken: stagedPayload.buyerToken,
+      amount: stagedPayload.amount,
+      currency: stagedPayload.currency,
+      item: stagedPayload.item,
+    });
+
+    // 6. Append AUTHORIZED entry to immutable audit ledger
     const auditRecord = appendAuditEntry({
       transcript: `Security Gate Authorized: ${stagedPayload.item} for ${stagedPayload.buyerToken}`,
       stagedPayload,
@@ -143,10 +153,11 @@ export function requireStepUpSecurityGate(req, res, next) {
         currency: stagedPayload.currency,
         assertionId: authResult.assertionId,
         userVerified: authResult.userVerified,
+        ticketId: securityExecutionTicket.ticketId,
       },
     });
 
-    // 6. Attach verified, de-tokenized sandbox payload to request for downstream PayPal route
+    // 7. Attach verified, de-tokenized sandbox payload to request for downstream PayPal route
     req.verifiedPayPalPayload = {
       buyerToken: stagedPayload.buyerToken,
       recipientName: deTokenizedBuyer.legalName,
@@ -156,6 +167,7 @@ export function requireStepUpSecurityGate(req, res, next) {
       amount: stagedPayload.amount,
       currency: stagedPayload.currency,
       assertionId: authResult.assertionId,
+      securityExecutionTicket,
       auditRecord,
     };
 

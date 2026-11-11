@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { getAuditLedger } from "./auditLedger.js";
+import { classifyRbiPurposeCode } from "./moneyGuide.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -157,16 +158,28 @@ export async function generateEncryptedStatementPdf({
       doc.text(`Items Count: ${transactions.length}`, 320, 152);
       doc.text(`Default Unlock PIN: ${effectiveUserPassword}`, 320, 164);
 
+      // Dynamic RBI Purpose Code & DGFT IEC classification
+      const sampleItem = transactions[0]?.item || transactions[0]?.description || "";
+      const dynamicRbi = classifyRbiPurposeCode(sampleItem, caGstCompliance?.iecCode);
+
+      const resolvedCompliance = {
+        panToken: caGstCompliance?.panToken || "AABCP****M",
+        iecCode: dynamicRbi.iecRequired ? (dynamicRbi.merchantIec || caGstCompliance?.iecCode || "0319088821") : "EXEMPT_SERVICES",
+        rbiPurposeCode: dynamicRbi.purposeCode ? `${dynamicRbi.purposeCode} - ${dynamicRbi.description}` : (caGstCompliance?.rbiPurposeCode || "P0103"),
+        gstStatus: caGstCompliance?.gstStatus || "Export under LUT (Rule 96A CGST Rules)",
+        invoiceStatus: caGstCompliance?.invoiceStatus || "PAID / COMPLETED",
+      };
+
       // --- Indian Exporter CA / GST Compliance Block ---
       const caTop = 184;
       doc.rect(40, caTop, 515, 42).fillAndStroke("#F1F5F9", "#CBD5E1");
       doc.fillColor("#0F172A").fontSize(8.5).font("Helvetica-Bold").text("CA / GST REGULATORY COMPLIANCE BLOCK (INDIA DGFT & RBI)", 48, caTop + 6);
       doc.font("Helvetica").fontSize(7.5).fillColor("#334155");
-      doc.text(`Masked PAN: ${caGstCompliance.panToken}`, 48, caTop + 18);
-      doc.text(`IEC Code: ${caGstCompliance.iecCode}`, 160, caTop + 18);
-      doc.text(`RBI Export Code: ${caGstCompliance.rbiPurposeCode}`, 280, caTop + 18);
-      doc.text(`GST Status: ${caGstCompliance.gstStatus}`, 48, caTop + 28);
-      doc.text(`Lifecycle Status: ${caGstCompliance.invoiceStatus}`, 360, caTop + 28);
+      doc.text(`Masked PAN: ${resolvedCompliance.panToken}`, 48, caTop + 18);
+      doc.text(`IEC Code: ${resolvedCompliance.iecCode}`, 160, caTop + 18);
+      doc.text(`RBI Export Code: ${resolvedCompliance.rbiPurposeCode}`, 280, caTop + 18);
+      doc.text(`GST Status: ${resolvedCompliance.gstStatus}`, 48, caTop + 28);
+      doc.text(`Lifecycle Status: ${resolvedCompliance.invoiceStatus}`, 360, caTop + 28);
 
       // --- Financial Summary Boxes ---
       const boxTop = 236;

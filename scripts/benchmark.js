@@ -14,11 +14,16 @@
 import path from "path";
 import { fileURLToPath } from "url";
 import { ADVERSARIAL_TEST_CASES } from "../server/routes/security.js";
-import { inspectUntrustedInput, validateIntentSchema } from "../server/services/guardrail.js";
+import {
+  inspectUntrustedInput,
+  validateIntentSchema,
+  sanitizeAndValidateCsvLedger,
+} from "../server/services/guardrail.js";
 import {
   evaluateTransactionPolicy,
   computeTransactionTotals,
   analyzeMerchantAnomalies,
+  classifyRbiPurposeCode,
 } from "../server/services/moneyGuide.js";
 import {
   redactPIIBeforeLLM,
@@ -37,6 +42,17 @@ import {
 } from "../server/services/auditLedger.js";
 import { createPayloadBoundChallenge, verifyPasskeyAssertion } from "../server/routes/auth.js";
 import { generateEncryptedStatementPdf, reconcilePdfTotalsWithRawJson } from "../server/services/pdfGenerator.js";
+import {
+  wrapPayPalToolkitWithSecurityGate,
+  issueSecurityExecutionTicket,
+  verifySecurityExecutionTicket,
+  clearConsumedTicketsForTesting,
+} from "../server/services/secureToolkitWrapper.js";
+import {
+  verifyPayPalWebhookEvent,
+  generateMockSignedWebhook,
+  clearWebhookIdempotencyCacheForTesting,
+} from "../server/services/webhookVerifier.js";
 
 // 30 Multilingual Utterance Payloads (10 Marathi, 10 Hindi, 10 English)
 export const MULTILINGUAL_TEST_CASES = [
@@ -286,6 +302,151 @@ export async function runFullBenchmark() {
     time: `${Date.now() - ledgerStart}ms`,
   });
 
+  // Suite 7: Toolkit Guardrail Proxy & Ticket Boundary
+  const toolkitStart = Date.now();
+  clearConsumedTicketsForTesting();
+  const testToolkit = wrapPayPalToolkitWithSecurityGate();
+
+  // 1. Direct tool call without ticket should be blocked
+  let directCallBlocked = false;
+  try {
+    await testToolkit.create_invoice({ amount: 100.0, item: "Direct Attempt" });
+  } catch (err) {
+    directCallBlocked = err.message.includes("BLOCKED");
+  }
+
+  // 2. Issue valid ticket and execute
+  const validTicket = issueSecurityExecutionTicket({
+    assertionId: "BENCH_ASSERTION_TK_01",
+    buyerToken: "BUYER_RAHUL_01",
+    amount: 100.0,
+    currency: "USD",
+    item: "Grade-A Wheat",
+  });
+  const writeSuccess = await testToolkit.create_invoice({
+    securityExecutionTicket: validTicket,
+    buyerToken: "BUYER_RAHUL_01",
+    amount: 100.0,
+    currency: "USD",
+    item: "Grade-A Wheat",
+  });
+
+  // 3. Replay with consumed ticket must be blocked
+  let replayBlocked = false;
+  try {
+    await testToolkit.create_invoice({
+      securityExecutionTicket: validTicket,
+      buyerToken: "BUYER_RAHUL_01",
+      amount: 100.0,
+      currency: "USD",
+      item: "Grade-A Wheat",
+    });
+  } catch (err) {
+    replayBlocked = err.message.includes("BLOCKED") || err.message.includes("consumed");
+  }
+
+  // 4. Read call attaches deterministic math
+  const readOutput = await testToolkit.list_transactions({
+    mockItems: [{ amount: 100.0, fee: 3.98 }, { amount: 200.0, fee: 7.47 }],
+  });
+  const readGuarded = Boolean(readOutput && readOutput._payvoiceGuarded === true);
+
+  const toolkitSuitePassed = directCallBlocked && Boolean(writeSuccess) && replayBlocked && readGuarded;
+
+  summaryRows.push({
+    num: 7,
+    subsystem: "PayPal Agent Toolkit Proxy",
+    assertion: "Single-Use Execution Ticket Barrier",
+    target: "Zero Direct LLM Mutation",
+    actual: toolkitSuitePassed ? "Direct Blocked + Replay Rejected" : "Toolkit Barrier Discrepancy",
+    status: toolkitSuitePassed ? "PASS" : "FAIL",
+    time: `${Date.now() - toolkitStart}ms`,
+  });
+
+  // Suite 8: Cryptographic Webhook Verifier & Anti-Replay
+  const webhookStart = Date.now();
+  clearWebhookIdempotencyCacheForTesting();
+
+  // 1. Valid signed webhook
+  const validWh = generateMockSignedWebhook({
+    eventType: "INVOICING.INVOICE.PAID",
+    invoiceId: "INV2-WH-BENCHMARK-01",
+    amount: 250.0,
+  });
+  const whValidCheck = verifyPayPalWebhookEvent(validWh.headers, validWh.rawBody);
+
+  // 2. Replay of same transmission ID must be rejected
+  const whReplayCheck = verifyPayPalWebhookEvent(validWh.headers, validWh.rawBody);
+
+  // 3. Stale webhook (>5 minutes) must be rejected
+  const staleTime = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const staleWh = generateMockSignedWebhook({
+    eventType: "INVOICING.INVOICE.PAID",
+    invoiceId: "INV2-WH-STALE-01",
+    timestamp: staleTime,
+  });
+  const whStaleCheck = verifyPayPalWebhookEvent(staleWh.headers, staleWh.rawBody);
+
+  // 4. Forged signature must be rejected
+  const forgedHeaders = {
+    ...validWh.headers,
+    "paypal-transmission-id": "TX_FORGED_9999",
+    "paypal-transmission-sig": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  };
+  const whForgedCheck = verifyPayPalWebhookEvent(forgedHeaders, validWh.rawBody);
+
+  const webhookSuitePassed =
+    whValidCheck.verified === true &&
+    whReplayCheck.verified === false &&
+    whStaleCheck.verified === false &&
+    whForgedCheck.verified === false;
+
+  summaryRows.push({
+    num: 8,
+    subsystem: "Cryptographic Webhook Verifier",
+    assertion: "Signature, Anti-Replay & Drift Window",
+    target: "100% Forged/Replay Rejected",
+    actual: webhookSuitePassed ? "Replay Rej. + Drift Rej. + Sig OK" : "Webhook Verification Failure",
+    status: webhookSuitePassed ? "PASS" : "FAIL",
+    time: `${Date.now() - webhookStart}ms`,
+  });
+
+  // Suite 9: Consented CSV Ledger Firewall & Dynamic RBI Purpose Code
+  const csvStart = Date.now();
+
+  // 1. Formula injection CSV checks
+  const maliciousCsv = `Date,Amount,Fee,Description\n2026-11-10,=cmd|' /C calc'!A0,3.98,Wheat Export\n2026-11-11,@SUM(A1:A10),7.47,Cotton Shipment`;
+  const csvBlockCheck = sanitizeAndValidateCsvLedger(maliciousCsv);
+
+  // 2. Clean CSV with valid numbers
+  const cleanCsv = `Date,Amount,Fee,Description,Currency,Buyer\n2026-11-10,200.00,7.47,Organic Wheat,USD,BUYER_RAHUL_01\n2026-11-11,-15.00,0.52,Dispute Fee,USD,BUYER_RAHUL_01`;
+  const csvCleanCheck = sanitizeAndValidateCsvLedger(cleanCsv);
+
+  // 3. Dynamic RBI Purpose Code checks
+  const goodsRbi = classifyRbiPurposeCode("Grade-A Wheat (100 kg)");
+  const servicesRbi = classifyRbiPurposeCode("Full-Stack React Development");
+  const rbiPassed =
+    goodsRbi.purposeCode === "P0103" &&
+    goodsRbi.iecRequired === true &&
+    servicesRbi.purposeCode === "P0802" &&
+    servicesRbi.iecRequired === false;
+
+  const csvSuitePassed =
+    csvBlockCheck.safe === false &&
+    csvCleanCheck.safe === true &&
+    csvCleanCheck.totalRows === 2 &&
+    rbiPassed === true;
+
+  summaryRows.push({
+    num: 9,
+    subsystem: "CSV Firewall & RBI Classifier",
+    assertion: "Formula Injection & Dynamic P0103/P0802",
+    target: "Zero Injection + Verified IEC",
+    actual: csvSuitePassed ? "CSV Sanitized + P0103/P0802 Classified" : "CSV/RBI Verification Failure",
+    status: csvSuitePassed ? "PASS" : "FAIL",
+    time: `${Date.now() - csvStart}ms`,
+  });
+
   // Print Formatted Summary Table matching deck
   console.log("┌────┬─────────────────────────────┬────────────────────────────────────┬──────────────────────┬────────┬──────────┐");
   console.log("│ #  │ Subsystem / Component       │ Security & Compliance Assertion    │ Target Benchmark     │ Status │ Latency  │");
@@ -307,9 +468,9 @@ export async function runFullBenchmark() {
   const totalTests = summaryRows.length;
   const totalElapsed = Date.now() - t0;
 
-  console.log(`\n🎯 PHASE 2 BENCHMARK SUMMARY: ${totalPassed}/${totalTests} Subsystems Passed in ${totalElapsed}ms`);
+  console.log(`\n🎯 PHASE 3 FINAL BENCHMARK SUMMARY: ${totalPassed}/${totalTests} Subsystems Passed in ${totalElapsed}ms`);
   if (totalPassed === totalTests) {
-    console.log("✅ ALL PAYVOICE PHASE 2 SECURITY GATES, WEBAUTHN BINDING, AND COMPLIANCE RULES VERIFIED!\n");
+    console.log("✅ ALL PAYVOICE PHASE 3 SECURITY GATES, TOOLKIT PROXY, WEBAUTHN BINDING, AND COMPLIANCE RULES VERIFIED!\n");
     return { passed: true, summaryRows };
   } else {
     console.error("❌ Some benchmark assertions failed.\n");

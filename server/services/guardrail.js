@@ -112,3 +112,148 @@ export function validateIntentSchema(intentJson) {
     errors,
   };
 }
+
+/**
+ * Consented CSV Ledger Formula-Injection Sanitizer & Numeric Validator
+ * Protects accounting uploads against OWASP CSV / Spreadsheet Formula Injection
+ * (e.g., =cmd|' /C calc'!A0, @SUM(A1:A10), +cmd, -cmd, \t=cmd).
+ *
+ * @param {string | Array<object> | Array<Array<string>>} csvInput
+ * @returns {{ safe: boolean, blockedCell?: string, reason?: string, sanitizedRows?: Array, totalRows?: number }}
+ */
+export function sanitizeAndValidateCsvLedger(csvInput) {
+  if (!csvInput) {
+    return { safe: false, reason: "Empty CSV input provided" };
+  }
+
+  function isFormulaInjection(val) {
+    if (val === null || val === undefined) return false;
+    const str = String(val).trim();
+    if (str.length === 0) return false;
+
+    // Check dangerous formula prefix chars: =, @, \t, \r
+    if (str.startsWith("=") || str.startsWith("@") || str.startsWith("\t") || str.startsWith("\r")) {
+      return true;
+    }
+
+    // Check + or - prefixes: allowed only if it is a pure numeric number (e.g. -15.00, +250.50)
+    if (str.startsWith("+") || str.startsWith("-")) {
+      const remainder = str.slice(1).trim();
+      if (/[|'"()`\\]|[a-zA-Z]/.test(remainder)) {
+        return true;
+      }
+      if (isNaN(Number(str))) {
+        return true;
+      }
+    }
+
+    // Check for pipe command execution or DDE payload patterns
+    if (/\|\s*['"]?\s*\/[a-zA-Z]/i.test(str) || /\bcmd\b|\bpowershell\b|\bcalc\b/i.test(str)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  const sanitizedRows = [];
+
+  if (typeof csvInput === "string") {
+    const lines = csvInput.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+    if (lines.length === 0) {
+      return { safe: false, reason: "CSV string contains no valid rows" };
+    }
+
+    const headerLine = lines[0];
+    const headers = headerLine.split(",").map((h) => h.trim().replace(/^["']|["']$/g, "").toLowerCase());
+
+    for (let r = 1; r < lines.length; r++) {
+      const rawLine = lines[r];
+      const cells = rawLine.split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
+
+      for (let c = 0; c < cells.length; c++) {
+        const cell = cells[c];
+        if (isFormulaInjection(cell)) {
+          return {
+            safe: false,
+            blockedCell: cell,
+            row: r + 1,
+            column: headers[c] || c + 1,
+            reason: `Spreadsheet formula injection detected in CSV row ${r + 1}: '${cell}'. Upload blocked by CSV Firewall.`,
+          };
+        }
+      }
+
+      const rowObj = {};
+      headers.forEach((h, idx) => {
+        rowObj[h] = cells[idx] || "";
+      });
+
+      const amount = Number(rowObj.amount || rowObj.gross || cells[1] || 0);
+      const fee = Number(rowObj.fee || rowObj.fees || cells[2] || 0);
+
+      sanitizedRows.push({
+        date: rowObj.date || cells[0] || new Date().toISOString().split("T")[0],
+        invoiceId: rowObj.invoiceid || rowObj.id || `CSV-TX-${r}`,
+        description: rowObj.description || rowObj.item || cells[3] || "Export Goods",
+        amount: isNaN(amount) ? 0 : amount,
+        fee: isNaN(fee) ? Number((amount * 0.0349 + 0.49).toFixed(2)) : fee,
+        currency: (rowObj.currency || cells[4] || "USD").toUpperCase(),
+        buyer: rowObj.buyer || rowObj.buyer_token || cells[5] || "BUYER_UNKNOWN",
+      });
+    }
+  } else if (Array.isArray(csvInput)) {
+    for (let r = 0; r < csvInput.length; r++) {
+      const item = csvInput[r];
+      if (Array.isArray(item)) {
+        for (const cell of item) {
+          if (isFormulaInjection(cell)) {
+            return {
+              safe: false,
+              blockedCell: String(cell),
+              row: r + 1,
+              reason: `Spreadsheet formula injection detected in array row ${r + 1}: '${cell}'. Upload blocked by CSV Firewall.`,
+            };
+          }
+        }
+        const amt = Number(item[1] || 0);
+        sanitizedRows.push({
+          date: item[0] || new Date().toISOString().split("T")[0],
+          invoiceId: `CSV-TX-${r + 1}`,
+          description: String(item[3] || item[2] || "Export Goods"),
+          amount: isNaN(amt) ? 0 : amt,
+          fee: Number(item[2] || (amt * 0.0349 + 0.49).toFixed(2)),
+          currency: String(item[4] || "USD").toUpperCase(),
+          buyer: String(item[5] || "BUYER_UNKNOWN"),
+        });
+      } else if (item && typeof item === "object") {
+        for (const [key, val] of Object.entries(item)) {
+          if (isFormulaInjection(val)) {
+            return {
+              safe: false,
+              blockedCell: String(val),
+              field: key,
+              row: r + 1,
+              reason: `Spreadsheet formula injection detected in field '${key}' (row ${r + 1}): '${val}'. Upload blocked by CSV Firewall.`,
+            };
+          }
+        }
+        const amt = Number(item.amount || item.gross || 0);
+        sanitizedRows.push({
+          date: item.date || new Date().toISOString().split("T")[0],
+          invoiceId: item.invoiceId || item.id || `CSV-TX-${r + 1}`,
+          description: item.description || item.item || "Export Goods",
+          amount: isNaN(amt) ? 0 : amt,
+          fee: Number(item.fee || (amt * 0.0349 + 0.49).toFixed(2)),
+          currency: (item.currency || "USD").toUpperCase(),
+          buyer: item.buyer || item.buyer_token || "BUYER_UNKNOWN",
+        });
+      }
+    }
+  }
+
+  return {
+    safe: true,
+    sanitizedRows,
+    totalRows: sanitizedRows.length,
+  };
+}
