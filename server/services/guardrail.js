@@ -6,7 +6,7 @@
 const ADVERSARIAL_PATTERNS = [
   { regex: /ignore\s+(all\s+)?(previous\s+)?(rules|instructions|prompts|commands)/i, label: "prompt_injection_override" },
   { regex: /you\s+are\s+now\s+(a\s+)?(system\s+admin|root|super\s*user|developer\s+mode)/i, label: "role_manipulation" },
-  { regex: /disregard\s+(all\s+)?(safeguards|constraints|limits|guidelines)/i, label: "safety_bypass" },
+  { regex: /disregard\s+(all\s+)?(safety\s+)?(safeguards|constraints|limits|guidelines|rules|instructions)/i, label: "safety_bypass" },
   { regex: /bypass\s+(verification|passkey|auth|policy|limits|money\s*guide)/i, label: "auth_bypass_attempt" },
   { regex: /send\s+(\$|usd\s*|eur\s*)?[5-9][0-9]{3,}/i, label: "unauthorized_high_value_force" },
   { regex: /\b(system\s*admin|sudo\s+execute|format\s+drive|api_key|client_secret)\b/i, label: "system_privilege_escalation" },

@@ -30,11 +30,15 @@ export async function generateEncryptedStatementPdf({
       const generatedAt = new Date().toISOString();
       const filename = `PayVoice_Export_Statement_${Date.now()}.pdf`;
 
-      // PDFKit Document with standard 128/256-bit password encryption
+      // PDFKit Document with standard password encryption (prompts on open)
+      const effectiveUserPassword = String(userPassword || "PAYVOICE2026").trim();
+      const effectiveOwnerPassword = process.env.PDF_OWNER_SECRET || "PAYVOICE_ADMIN_MASTER_2026";
+
       const doc = new PDFDocument({
         size: "A4",
         margin: 40,
-        userPassword: userPassword,
+        userPassword: effectiveUserPassword,
+        ownerPassword: effectiveOwnerPassword,
         permissions: {
           printing: "highResolution",
           modifying: false,

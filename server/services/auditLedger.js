@@ -121,3 +121,74 @@ export function verifyLedgerIntegrity() {
     verifiedAt,
   };
 }
+
+let ledgerBackup = null;
+
+/**
+ * Demo Simulation: Injects a bit-flip / payload alteration into an audit entry
+ * Used during live hackathon judging to demonstrate real-time cryptographic tampering detection.
+ * @param {number} [targetIndex] - Index to tamper with (defaults to latest non-genesis entry)
+ * @param {string} [tamperedPayload] - Malicious value to inject
+ * @returns {object} Tampered record details
+ */
+export function tamperAuditEntry(targetIndex = null, tamperedPayload = '{"amount": 9999.00, "attacker": "evil@hacker.com"}') {
+  if (auditLedger.length <= 1) {
+    // If only genesis exists, create an entry first so we can tamper with it
+    appendAuditEntry({
+      transcript: "Demo Transaction for Tamper Testing",
+      stagedPayload: { amount: 100.0, item: "Standard Export Goods" },
+      status: "COMPLETED",
+    });
+  }
+
+  // Save clean snapshot before tampering
+  if (!ledgerBackup) {
+    ledgerBackup = JSON.parse(JSON.stringify(auditLedger));
+  }
+
+  const idx = targetIndex !== null && targetIndex >= 0 && targetIndex < auditLedger.length
+    ? targetIndex
+    : auditLedger.length - 1;
+
+  const original = { ...auditLedger[idx] };
+  // Inject malicious bit-flip without re-computing the rowHash
+  auditLedger[idx].stagedPayloadHash = sha256(tamperedPayload);
+  auditLedger[idx].metadata = {
+    ...auditLedger[idx].metadata,
+    SIMULATED_TAMPER: true,
+    injectedAt: new Date().toISOString(),
+    tamperedPayload,
+  };
+
+  return {
+    tampered: true,
+    index: idx,
+    originalHash: original.rowHash,
+    tamperedPayloadHash: auditLedger[idx].stagedPayloadHash,
+    notice: "Simulated bit-flip injected. Running /api/audit-ledger/verify will now fail.",
+  };
+}
+
+/**
+ * Demo Simulation: Restores clean audit ledger from pristine backup
+ * @returns {{ restored: boolean, totalRecords: number, message: string }}
+ */
+export function restoreAuditLedger() {
+  if (ledgerBackup) {
+    auditLedger.length = 0;
+    auditLedger.push(...JSON.parse(JSON.stringify(ledgerBackup)));
+    ledgerBackup = null;
+    return {
+      restored: true,
+      totalRecords: auditLedger.length,
+      message: "Audit ledger restored to pristine state. Hash chain integrity restored.",
+    };
+  }
+
+  return {
+    restored: false,
+    totalRecords: auditLedger.length,
+    message: "No active tampering state found. Ledger is already in original state.",
+  };
+}
+

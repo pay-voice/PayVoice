@@ -88,18 +88,18 @@ export function redactPIIBeforeLLM(transcript) {
   for (const buyer of Object.values(buyers)) {
     if (buyer.email) {
       const emailEscaped = buyer.email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      redacted = redacted.replace(new RegExp(emailEscaped, "gi"), buyer.buyerToken);
+      redacted = redacted.replace(new RegExp(emailEscaped, "gi"), () => buyer.buyerToken);
     }
     if (buyer.name) {
       const nameParts = buyer.name.trim().split(/\s+/);
       // Replace full name first
       const fullNameEscaped = buyer.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      redacted = redacted.replace(new RegExp(`\\b${fullNameEscaped}\\b`, "gi"), buyer.buyerToken);
+      redacted = redacted.replace(new RegExp(`\\b${fullNameEscaped}\\b`, "gi"), () => buyer.buyerToken);
 
       // Replace first name if specific (e.g. Rahul)
       if (nameParts[0] && nameParts[0].length >= 3) {
         const firstNameEscaped = nameParts[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        redacted = redacted.replace(new RegExp(`\\b${firstNameEscaped}\\b`, "gi"), buyer.buyerToken);
+        redacted = redacted.replace(new RegExp(`\\b${firstNameEscaped}\\b`, "gi"), () => buyer.buyerToken);
       }
     }
   }
@@ -153,6 +153,23 @@ export function registerBuyer(buyerData) {
     throw new Error("Invalid buyer registration data: name and email are required");
   }
 
+  const cleanEmail = buyerData.email.trim().toLowerCase();
+
+  // If buyer with same email exists, update and return existing record
+  for (const [token, existing] of Object.entries(buyers)) {
+    if (existing.email === cleanEmail) {
+      buyers[token] = {
+        ...existing,
+        name: buyerData.name.trim(),
+        country: buyerData.country || existing.country,
+        currency: buyerData.currency || existing.currency,
+        maxLimit: Number(buyerData.maxLimit) || existing.maxLimit,
+      };
+      saveVault();
+      return buyers[token];
+    }
+  }
+
   const tokenPrefix = buyerData.name.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 5) || "BUYER";
   const existingTokens = Object.keys(buyers);
   const sequenceNum = String(existingTokens.length + 1).padStart(2, "0");
@@ -161,7 +178,7 @@ export function registerBuyer(buyerData) {
   buyers[buyerToken] = {
     buyerToken,
     name: buyerData.name.trim(),
-    email: buyerData.email.trim().toLowerCase(),
+    email: cleanEmail,
     country: buyerData.country || "US",
     currency: buyerData.currency || "USD",
     maxLimit: Number(buyerData.maxLimit) || 2500.0,

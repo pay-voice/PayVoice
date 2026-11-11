@@ -1,12 +1,13 @@
 {
-  "name": "paypal-standard-integration",
+  "name": "payvoice",
   "version": "1.0.0",
-  "description": "PayPal Standard Checkout integration with order creation, buyer approval, and payment capture",
+  "description": "PayVoice: Secure Multilingual Financial Agent for Indian MSME Exporters | PayPal AI Hackathon 2026",
   "main": "server.js",
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "benchmark": "node server/tests/run-benchmarks.js"
   },
   "dependencies": {
     "@paypal/agent-toolkit": "^1.11.0",

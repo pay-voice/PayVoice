@@ -14,6 +14,7 @@ import invoicesRouter from "./server/routes/invoices.js";
 import transactionsRouter from "./server/routes/transactions.js";
 import statementsRouter from "./server/routes/statements.js";
 import webhooksRouter from "./server/routes/webhooks.js";
+import securityRouter from "./server/routes/security.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +34,7 @@ app.use("/api/invoices", invoicesRouter);
 app.use("/api/transactions", transactionsRouter);
 app.use("/api/statements", statementsRouter);
 app.use("/api/webhooks", webhooksRouter);
+app.use("/api/security", securityRouter);
 
 // --- Shared Security & Vault Endpoints ---
 
