@@ -65,10 +65,5 @@ router.post("/paypal", async (req, res) => {
     return res.status(500).json({ error: "Webhook processing failure: " + error.message });
   }
 });
-  } catch (error) {
-    console.error("[Webhook Error]:", error);
-    return res.status(500).json({ error: "Webhook processing failure: " + error.message });
-  }
-});
 
 export default router;

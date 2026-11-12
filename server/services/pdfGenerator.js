@@ -63,11 +63,11 @@ export async function generateEncryptedStatementPdf({
   transactions = [],
   totals = { totalGross: 0, estimatedFees: 0, totalNet: 0, currency: "USD", count: 0 },
   userPassword = "PAYVOICE2026",
-  merchant = { name: "AgriMandi MSME Exporters", email: "exports@agrimandi.in", country: "India" },
+  merchant = { name: "PayVoice Cloud Solutions", email: "billing@payvoice.io", country: "India" },
   caGstCompliance = {
     panToken: "AABCP****M",
     iecCode: "0312049921",
-    rbiPurposeCode: "P0103 - Agricultural & Food Produce Exports",
+    rbiPurposeCode: "P0802 - Software Development & Cloud SaaS Services",
     gstStatus: "Export under LUT (Rule 96A CGST Rules)",
     invoiceStatus: "PAID / COMPLETED",
   },
@@ -205,7 +205,7 @@ export async function generateEncryptedStatementPdf({
       doc.fillColor("#1E293B").fontSize(7.5).font("Helvetica-Bold");
       doc.text("DATE", 45, y + 5);
       doc.text("INVOICE / ID", 110, y + 5);
-      doc.text("BUYER / COMMODITY DESCRIPTION", 230, y + 5);
+      doc.text("BUYER / SERVICE & MILESTONE DESCRIPTION", 230, y + 5);
       doc.text("STATUS", 420, y + 5);
       doc.text("AMOUNT", 490, y + 5);
       y += 20;
@@ -217,7 +217,7 @@ export async function generateEncryptedStatementPdf({
               {
                 date: "2026-11-02",
                 id: "INV2-OPGSP-SAMPLE",
-                description: "BUYER_RAHUL_01 - 100 kg Grade-A Wheat",
+                description: "BUYER_RAHUL_01 - Cloud API Development (Milestone 1)",
                 status: "PAID",
                 amount: 200.0,
               },

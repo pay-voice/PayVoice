@@ -21,8 +21,8 @@ function cleanOldInvoices() {
 /**
  * Dynamic RBI Purpose Code & DGFT IEC Enforcement Classifier
  * Categorizes cross-border transactions:
- *   - Physical/Agricultural Goods: P0103 (requires valid 10-char alphanumeric IEC)
- *   - Digital/Freelance Services: P0802 (exempt from physical cargo IEC requirement)
+ *   - Physical Hardware/Goods: P0103 (requires valid 10-char alphanumeric IEC)
+ *   - Digital/IT Services: P0802 (exempt from physical cargo IEC requirement)
  *
  * @param {string} itemDescription
  * @param {string} [merchantIec]
@@ -32,12 +32,8 @@ export function classifyRbiPurposeCode(itemDescription = "", merchantIec = null)
   const norm = String(itemDescription || "").toLowerCase().trim();
 
   const goodsKeywords = [
-    "wheat", "grain", "cotton", "seed", "seeds", "rice", "basmati", "soybean",
-    "spice", "spices", "tea", "coffee", "textile", "fabric", "garment",
-    "handicraft", "leather", "machinery", "equipment", "hardware", "goods",
-    "crop", "produce", "organic", "fertilizer", "soil", "cargo", "shipment",
-    "dispatch", "lot", "agri", "commodity", "pack", "गहू", "गेहूँ", "सोयाबीन",
-    "तांदूळ", "चावल", "कपास", "बियाणे", "बीज", "मसाले", "मसाला",
+    "hardware", "equipment", "server rack", "device", "physical kit",
+    "electronics", "appliance", "circuit", "sensor", "storage drive",
   ];
 
   const servicesKeywords = [
@@ -401,7 +397,7 @@ export function analyzeMerchantAnomalies(transactions = [], invoices = []) {
       amounts.push(amt);
       currencyBreakdown[curr] = (currencyBreakdown[curr] || 0) + amt;
 
-      const category = tx.category || (tx.description && tx.description.includes("Seed") ? "Agricultural Seeds" : "Grains & Commodities");
+      const category = tx.category || (tx.description && tx.description.includes("API") ? "Cloud & APIs" : "SaaS & Software");
       categoryBreakdown[category] = (categoryBreakdown[category] || 0) + amt;
 
       const fee = Number(tx.fee || (amt * 0.0349 + 0.49).toFixed(2));

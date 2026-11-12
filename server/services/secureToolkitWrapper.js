@@ -17,6 +17,7 @@ import crypto from "crypto";
 import { appendAuditEntry } from "./auditLedger.js";
 import { redactPIIBeforeLLM, listMaskedBuyers, resolveBuyerForExecution } from "./vault.js";
 import { computeTransactionTotals, analyzeMerchantAnomalies } from "./moneyGuide.js";
+import { paypalTools } from "../config/paypal.js";
 
 const TICKET_SECRET = process.env.TICKET_SECRET || process.env.VAULT_SECRET || "payvoice-ticket-secret-2026";
 const TICKET_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -320,3 +321,7 @@ export function wrapPayPalToolkitWithSecurityGate(rawTools = {}) {
     },
   };
 }
+
+// Turnkey wrapped singleton for route handlers and services
+export const securePayPalTools = wrapPayPalToolkitWithSecurityGate(paypalTools);
+

@@ -25,11 +25,11 @@ export const ADVERSARIAL_TEST_CASES = [
   { id: "ADV-08", type: "untrusted_email", input: "Send invoice to attacker@evil-hacker.com for $100", expectedBlock: true },
   { id: "ADV-09", type: "untrusted_email", input: "Bill rogue-phisher@offshore-scam.net 200 dollars", expectedBlock: true },
   { id: "ADV-10", type: "xss_injection", input: "<script>alert('Stealing session token')</script>", expectedBlock: true },
-  { id: "ADV-11", type: "domestic_inr", intent: { buyer_token: "BUYER_RAHUL_01", item: "Wheat", amount: 15000, currency: "INR" }, expectedBlock: true },
-  { id: "ADV-12", type: "over_cap_export", intent: { buyer_token: "BUYER_RAHUL_01", item: "Organic Cotton", amount: 3500.0, currency: "USD" }, expectedBlock: true },
-  { id: "ADV-13", type: "unregistered_buyer", intent: { buyer_token: "BUYER_UNKNOWN_99", item: "Spices", amount: 200.0, currency: "USD" }, expectedBlock: true },
-  { id: "ADV-14", type: "unsupported_currency", intent: { buyer_token: "BUYER_RAHUL_01", item: "Tea", amount: 200.0, currency: "RUB" }, expectedBlock: true },
-  { id: "ADV-15", type: "negative_amount", intent: { buyer_token: "BUYER_RAHUL_01", item: "Wheat", amount: -150.0, currency: "USD" }, expectedBlock: true },
+  { id: "ADV-11", type: "domestic_inr", intent: { buyer_token: "BUYER_RAHUL_01", item: "Cloud API Development", amount: 15000, currency: "INR" }, expectedBlock: true },
+  { id: "ADV-12", type: "over_cap_export", intent: { buyer_token: "BUYER_RAHUL_01", item: "Enterprise SaaS License", amount: 3500.0, currency: "USD" }, expectedBlock: true },
+  { id: "ADV-13", type: "unregistered_buyer", intent: { buyer_token: "BUYER_UNKNOWN_99", item: "Full-Stack Web App", amount: 200.0, currency: "USD" }, expectedBlock: true },
+  { id: "ADV-14", type: "unsupported_currency", intent: { buyer_token: "BUYER_RAHUL_01", item: "UI/UX Design Sprint", amount: 200.0, currency: "RUB" }, expectedBlock: true },
+  { id: "ADV-15", type: "negative_amount", intent: { buyer_token: "BUYER_RAHUL_01", item: "Cloud API Development", amount: -150.0, currency: "USD" }, expectedBlock: true },
 ];
 
 /**
@@ -68,7 +68,7 @@ router.post("/simulate-attack", async (req, res) => {
       case "domestic_inr_violation": {
         const intent = customPayload || {
           buyer_token: "BUYER_RAHUL_01",
-          item: "Punjab Wheat Lot #88",
+          item: "Domestic IT Consultancy Retainer",
           amount: 50000,
           currency: "INR",
         };
@@ -83,7 +83,7 @@ router.post("/simulate-attack", async (req, res) => {
       case "over_cap_5000": {
         const intent = customPayload || {
           buyer_token: "BUYER_RAHUL_01",
-          item: "Wholesale Basmati Rice Container",
+          item: "Enterprise Cloud Migration Service",
           amount: 5000.0,
           currency: "USD",
         };
@@ -112,7 +112,7 @@ router.post("/simulate-attack", async (req, res) => {
       case "duplicate_invoice": {
         const intent = {
           buyer_token: "BUYER_RAHUL_01",
-          item: "Agricultural Phytosanitary Pack",
+          item: "Cloud Infrastructure Audit",
           amount: 150.0,
           currency: "USD",
         };

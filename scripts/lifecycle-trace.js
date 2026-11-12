@@ -5,8 +5,8 @@
  * Implements and executes the exact 7-step authentic lifecycle trace from Page 4
  * of the hackathon submission deck, exercising real calls to all security subsystems:
  *
- *   [1] Voice Command (Marathi): "Rahul la 200 dollars cha wheat invoice pathav"
- *       -> Redacted to BUYER_RAHUL_01 | Item: "Grade-A Wheat (100 kg)" | $200.00 USD | Purpose: P0103
+ *   [1] Voice Command (Marathi): "Rahul la 200 dollars cha software project invoice pathav"
+ *       -> Redacted to BUYER_RAHUL_01 | Item: "Cloud API Development" | $200.00 USD | Purpose: P0802
  *   [2] Deterministic Node.js Validation:
  *       -> Allowlist PASS | Export Cap PASS ($200 <= $2,500) | Idempotency PASS | Read-Back TRUE
  *   [3] Step-Up WebAuthn Verification:
@@ -72,13 +72,13 @@ export async function runLifecycleTrace() {
   // STEP 1: Multilingual Voice Capture & PII Vault Tokenization
   // =========================================================================
   const s1Start = Date.now();
-  const rawUtterance = "Rahul la 200 dollars cha wheat invoice pathav";
+  const rawUtterance = "Rahul la 200 dollars cha software project invoice pathav";
   const firewallCheck = inspectUntrustedInput(rawUtterance);
 
   // Redact any cleartext PII through AES-256-GCM Vault
   const redactedUtterance = redactPIIBeforeLLM(rawUtterance);
   const targetBuyerToken = "BUYER_RAHUL_01";
-  const itemDescription = "Grade-A Wheat (100 kg)";
+  const itemDescription = "Cloud API Development";
   const invoiceAmount = 200.0;
   const invoiceCurrency = "USD";
 

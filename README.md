@@ -23,8 +23,8 @@ Because PayPal India operates strictly under RBI Online Payment Gateway Service 
 
 ## 🚀 The 6-Step Core Workflow
 
-1. **Multilingual Voice Capture**: Spoken commands in **Marathi**, **Hindi**, or **English** (e.g., *"Rahul la 200 dollars cha wheat invoice pathav"*).
-2. **Structured AI Intent Extraction**: Intent mapped to strict JSON (`action: create_invoice`, `buyer_token: BUYER_RAHUL_01`, `item: Grade-A Wheat`, `amount: 200.00`, `currency: USD`).
+1. **Multilingual Voice Capture**: Spoken commands in **Marathi**, **Hindi**, or **English** (e.g., *"Rahul la 200 dollars cha software project invoice pathav"*).
+2. **Structured AI Intent Extraction**: Intent mapped to strict JSON (`action: create_invoice`, `buyer_token: BUYER_RAHUL_01`, `item: Cloud API Development`, `amount: 200.00`, `currency: USD`).
 3. **Deterministic Money Guide Validation**: Validates allowlist, checks \$2,500 limit, confirms currency, and checks duplicate idempotency.
 4. **Visual & Audible Read-Back**: Staged preview card rendered on screen and spoken back via browser SpeechSynthesis in the user's selected language.
 5. **Step-Up WebAuthn Passkey Verification**: Hardware biometric prompt generates assertion signature matching the payload hash challenge.

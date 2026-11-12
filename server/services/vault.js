@@ -39,12 +39,13 @@ export function computeBlindIndex(email) {
   return crypto.createHmac("sha256", key).update(`blind-index:${normalized}`).digest("hex");
 }
 
-const RAHUL_EMAIL = "rahul.mehta@exportimport-global.com";
+const RAHUL_EMAIL = "rahul.mehta@techglobal-corp.com";
 const DEFAULT_BUYERS = {
   BUYER_RAHUL_01: {
     buyerToken: "BUYER_RAHUL_01",
     name: "Rahul Mehta",
     email: RAHUL_EMAIL,
+    company: "TechGlobal Corp (US)",
     blindIndex: computeBlindIndex(RAHUL_EMAIL),
     country: "US",
     currency: "USD",

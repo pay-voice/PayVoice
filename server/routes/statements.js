@@ -11,7 +11,7 @@ const DEMO_TRANSACTIONS = [
   {
     id: "INV2-OPGSP-2026-001",
     date: "2026-11-02T10:00:00Z",
-    description: "BUYER_RAHUL_01 - 100 kg Grade-A Wheat Export",
+    description: "BUYER_RAHUL_01 - Cloud API Development (Milestone 1)",
     status: "PAID",
     amount: 200.0,
     currency: "USD",
@@ -19,7 +19,7 @@ const DEMO_TRANSACTIONS = [
   {
     id: "INV2-OPGSP-2026-002",
     date: "2026-11-05T14:30:00Z",
-    description: "BUYER_GLOBAL_02 - 50 kg Organic Cotton Seed",
+    description: "BUYER_GLOBAL_02 - UI/UX Design Sprint (40 Hours)",
     status: "PAID",
     amount: 450.0,
     currency: "USD",
@@ -27,7 +27,7 @@ const DEMO_TRANSACTIONS = [
   {
     id: "INV2-OPGSP-2026-003",
     date: "2026-11-09T16:45:00Z",
-    description: "BUYER_RAHUL_01 - Agricultural Soil Testing & Phytosanitary Pack",
+    description: "BUYER_RAHUL_01 - DevOps & CI/CD Pipeline Automation",
     status: "SENT",
     amount: 150.0,
     currency: "USD",
@@ -35,7 +35,7 @@ const DEMO_TRANSACTIONS = [
   {
     id: "INV2-OPGSP-2026-004",
     date: "2026-10-15T09:15:00Z",
-    description: "BUYER_GLOBAL_02 - Mustard Seed Lot #210",
+    description: "BUYER_GLOBAL_02 - React Native Mobile Frontend",
     status: "PAID",
     amount: 320.0,
     currency: "USD",
@@ -43,7 +43,7 @@ const DEMO_TRANSACTIONS = [
   {
     id: "INV2-OPGSP-2026-005",
     date: "2026-10-28T11:20:00Z",
-    description: "BUYER_RAHUL_01 - Grain Inspection Dispatch Pack",
+    description: "BUYER_RAHUL_01 - Backend Microservices Architecture",
     status: "PAID",
     amount: 180.0,
     currency: "USD",

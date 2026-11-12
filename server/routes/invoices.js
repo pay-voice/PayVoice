@@ -5,7 +5,7 @@ import { evaluateTransactionPolicy } from "../services/moneyGuide.js";
 import { resolveBuyerToken } from "../services/vault.js";
 import { appendAuditEntry } from "../services/auditLedger.js";
 import { createPayloadBoundChallenge, verifyPasskeyAssertion } from "./auth.js";
-import { paypalTools } from "../config/paypal.js";
+import { securePayPalTools, issueSecurityExecutionTicket } from "../services/secureToolkitWrapper.js";
 
 const router = Router();
 
@@ -195,41 +195,46 @@ router.post("/execute", async (req, res) => {
       });
     }
 
-    // 2. Execute via PayPal Agent Toolkit or Simulated Sandbox Invoicing
+    // 2. Execute via Cryptographically Guarded PayPal Agent Toolkit
     const staged = stagedRecord.stagedPayload;
     let invoiceId = `INV2-${crypto.randomBytes(4).toString("hex").toUpperCase()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
     let paypalResponse = null;
 
     try {
-      if (paypalTools && paypalTools.invoices && typeof paypalTools.invoices.create === "function") {
-        const createRes = await paypalTools.invoices.create({
-          detail: {
-            currencyCode: staged.currency,
-            note: "Export invoice processed via PayVoice Secure Agent",
-          },
-          primaryRecipients: [
-            {
-              billingInfo: {
-                name: { givenName: staged.buyerName },
-                emailAddress: staged.buyerEmail,
-              },
-            },
-          ],
-          items: [
-            {
-              name: staged.item,
-              quantity: "1",
-              unitAmount: { currencyCode: staged.currency, value: staged.amount.toFixed(2) },
-            },
-          ],
-        });
+      const createTicket = issueSecurityExecutionTicket({
+        assertionId: authResult.assertionId,
+        buyerToken: staged.buyerToken,
+        amount: staged.amount,
+        currency: staged.currency,
+        item: staged.item,
+      });
 
-        invoiceId = createRes?.id || invoiceId;
-        if (paypalTools.invoices.send && typeof paypalTools.invoices.send === "function") {
-          await paypalTools.invoices.send({ invoiceId });
-        }
-        paypalResponse = createRes;
-      }
+      const createRes = await securePayPalTools.create_invoice({
+        securityExecutionTicket: createTicket,
+        buyerToken: staged.buyerToken,
+        amount: staged.amount,
+        currency: staged.currency,
+        item: staged.item,
+        invoiceId,
+      });
+
+      invoiceId = createRes?.id || createRes?.invoiceId || invoiceId;
+
+      const sendTicket = issueSecurityExecutionTicket({
+        assertionId: authResult.assertionId,
+        buyerToken: staged.buyerToken,
+        amount: staged.amount,
+        currency: staged.currency,
+        item: staged.item,
+      });
+
+      const sendRes = await securePayPalTools.send_invoice({
+        securityExecutionTicket: sendTicket,
+        invoiceId,
+        recipientEmail: staged.buyerEmail,
+      });
+
+      paypalResponse = { create: createRes, send: sendRes };
     } catch (apiErr) {
       console.warn("[PayPal Invoicing API call notice - running in verified sandbox flow]:", apiErr.message);
       paypalResponse = { note: "Executed via PayVoice verified sandbox connector", simulatedId: invoiceId };

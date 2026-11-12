@@ -23,7 +23,7 @@ You have turnkey, drop-in ES modules in `client/js/` to trigger biometric passke
 import { registerDevicePasskey, signStagedInvoiceWithPasskey } from "./passkey.js";
 
 // Step A: Register the merchant's OS passkey (Windows Hello / Touch ID)
-const regResult = await registerDevicePasskey("admin@agrimandi.in", "AgriMandi Exporters");
+const regResult = await registerDevicePasskey("admin@payvoice.io", "PayVoice Solutions");
 console.log("Passkey registered:", regResult.credentialId);
 
 // Step B: Sign a staged invoice preview during voice confirmation

@@ -71,40 +71,40 @@ import {
 // 30 Multilingual Utterance Payloads (10 Marathi, 10 Hindi, 10 English)
 export const MULTILINGUAL_TEST_CASES = [
   // --- 10 Marathi Utterances ---
-  { lang: "mr-IN", utterance: "राहुलला २०० डॉलर्सचा गहू इनव्हॉईस पाठव", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "गहू", amount: 200.0, currency: "USD" } },
-  { lang: "mr-IN", utterance: "राहुलसाठी १५० यूएसडीचे कॉटन इनव्हॉईस तयार करा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "कॉटन बियाणे", amount: 150.0, currency: "USD" } },
-  { lang: "mr-IN", utterance: "राहुलला ३०० डॉलर्सचे सोयाबीन बिल पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "सोयाबीन", amount: 300.0, currency: "USD" } },
-  { lang: "mr-IN", utterance: "राहुलला ५०० युरोचे सेंद्रिय तांदूळ इनव्हॉईस पाठव", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "सेंद्रिय तांदूळ", amount: 500.0, currency: "EUR" } },
-  { lang: "mr-IN", utterance: "८०० डॉलर्सचा गहू राहुलला पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "गहू निर्यात", amount: 800.0, currency: "USD" } },
-  { lang: "mr-IN", utterance: "राहुलला २५० डॉलर्सचे बियाणे इनव्हॉईस द्या", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "बियाणे", amount: 250.0, currency: "USD" } },
-  { lang: "mr-IN", utterance: "४०० युरोचे बासमती तांदूळ बिल पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "बासमती तांदूळ", amount: 400.0, currency: "EUR" } },
-  { lang: "mr-IN", utterance: "राहुलला १०० डॉलर्सची माती तपासणी फी पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "माती तपासणी", amount: 100.0, currency: "USD" } },
-  { lang: "mr-IN", utterance: "राहुलला ६०० डॉलर्सचे मसाले पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "मसाले", amount: 600.0, currency: "USD" } },
-  { lang: "mr-IN", utterance: "राहुलला १२५ डॉलर्सचे कृषी पॅकेज इनव्हॉईस पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "कृषी पॅकेज", amount: 125.0, currency: "USD" } },
+  { lang: "mr-IN", utterance: "राहुलला २०० डॉलर्सचा सॉफ्टवेअर प्रोजेक्ट इनव्हॉईस पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "सॉफ्टवेअर प्रोजेक्ट", amount: 200.0, currency: "USD" } },
+  { lang: "mr-IN", utterance: "राहुलसाठी १५० यूएसडीचे यूआय डिझाइन इनव्हॉईस तयार करा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "यूआय डिझाइन", amount: 150.0, currency: "USD" } },
+  { lang: "mr-IN", utterance: "राहुलला ३०० डॉलर्सचे क्लाउड आर्किटेक्चर बिल पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "क्लाउड आर्किटेक्चर", amount: 300.0, currency: "USD" } },
+  { lang: "mr-IN", utterance: "राहुलला ५०० युरोचे ॲप डेव्हलपमेंट इनव्हॉईस पाठव", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "ॲप डेव्हलपमेंट", amount: 500.0, currency: "EUR" } },
+  { lang: "mr-IN", utterance: "८०० डॉलर्सचा एपीआय कोड राहुलला पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "एपीआय कोड", amount: 800.0, currency: "USD" } },
+  { lang: "mr-IN", utterance: "राहुलला २५० डॉलर्सचे सायबर सुरक्षा इनव्हॉईस द्या", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "सायबर सुरक्षा", amount: 250.0, currency: "USD" } },
+  { lang: "mr-IN", utterance: "४०० युरोचे डेटाबेस मायग्रेशन बिल पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "डेटाबेस मायग्रेशन", amount: 400.0, currency: "EUR" } },
+  { lang: "mr-IN", utterance: "राहुलला १०० डॉलर्सची कोड रिव्ह्यू फी पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "कोड रिव्ह्यू", amount: 100.0, currency: "USD" } },
+  { lang: "mr-IN", utterance: "राहुलला ६०० डॉलर्सचे फुलस्टॅक मॉड्युल पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "फुलस्टॅक मॉड्युल", amount: 600.0, currency: "USD" } },
+  { lang: "mr-IN", utterance: "राहुलला १२५ डॉलर्सचे डेव्हऑप्स पॅकेज इनव्हॉईस पाठवा", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "डेव्हऑप्स पॅकेज", amount: 125.0, currency: "USD" } },
 
   // --- 10 Hindi Utterances ---
-  { lang: "hi-IN", utterance: "राहुल को २०० डॉलर का गेहूँ इनवॉइस भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "गेहूँ", amount: 200.0, currency: "USD" } },
-  { lang: "hi-IN", utterance: "राहुल के लिए १५० यूएसडी का कपास इनवॉइस तैयार करो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "कपास", amount: 150.0, currency: "USD" } },
-  { lang: "hi-IN", utterance: "राहुल को ३०० डॉलर का सोयाबीन बिल भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "सोयाबीन", amount: 300.0, currency: "USD" } },
-  { lang: "hi-IN", utterance: "राहुल को ५०० यूरो का जैविक चावल इनवॉइस भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "जैविक चावल", amount: 500.0, currency: "EUR" } },
-  { lang: "hi-IN", utterance: "८०० डॉलर का गेहूँ राहुल को इनवॉइस करो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "गेहूँ", amount: 800.0, currency: "USD" } },
-  { lang: "hi-IN", utterance: "राहुल को २५० डॉलर का बीज इनवॉइस भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "बीज", amount: 250.0, currency: "USD" } },
-  { lang: "hi-IN", utterance: "४०० यूरो का बासमती चावल बिल भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "बासमती चावल", amount: 400.0, currency: "EUR" } },
-  { lang: "hi-IN", utterance: "राहुल को १०० डॉलर का मृदा परीक्षण बिल भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "मृदा परीक्षण", amount: 100.0, currency: "USD" } },
-  { lang: "hi-IN", utterance: "राहुल को ६०० डॉलर का मसाला इनवॉइस भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "मसाला", amount: 600.0, currency: "USD" } },
-  { lang: "hi-IN", utterance: "राहुल को १२५ डॉलर का कृषि पैक बिल भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "कृषि पैक", amount: 125.0, currency: "USD" } },
+  { lang: "hi-IN", utterance: "राहुल को 200 डॉलर का सॉफ्टवेअर प्रोजेक्ट इनवॉइस भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "सॉफ्टवेयर प्रोजेक्ट", amount: 200.0, currency: "USD" } },
+  { lang: "hi-IN", utterance: "राहुल के लिए १५० यूएसडी का यूआई डिजाइन इनवॉइस तैयार करो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "यूआई डिजाइन", amount: 150.0, currency: "USD" } },
+  { lang: "hi-IN", utterance: "राहुल को ३०० डॉलर का क्लाउड आर्किटेक्चर बिल भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "क्लाउड आर्किटेक्चर", amount: 300.0, currency: "USD" } },
+  { lang: "hi-IN", utterance: "राहुल को ५०० यूरो का ऐप डेवलपमेंट इनवॉइस भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "ऐप डेवलपमेंट", amount: 500.0, currency: "EUR" } },
+  { lang: "hi-IN", utterance: "८०० डॉलर का एपीआई कोड राहुल को इनवॉइस करो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "एपीआई कोड", amount: 800.0, currency: "USD" } },
+  { lang: "hi-IN", utterance: "राहुल को २५० डॉलर का साइबर सुरक्षा इनवॉइस भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "साइबर सुरक्षा", amount: 250.0, currency: "USD" } },
+  { lang: "hi-IN", utterance: "४०० यूरो का डेटाबेस माइग्रेशन बिल भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "डेटाबेस माइग्रेशन", amount: 400.0, currency: "EUR" } },
+  { lang: "hi-IN", utterance: "राहुल को १०० डॉलर का कोड रिव्यू बिल भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "कोड रिव्यू", amount: 100.0, currency: "USD" } },
+  { lang: "hi-IN", utterance: "राहुल को ६०० डॉलर का फुलस्टैक मॉड्यूल इनवॉइस भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "फुलस्टैक मॉड्यूल", amount: 600.0, currency: "USD" } },
+  { lang: "hi-IN", utterance: "राहुल को १२५ डॉलर का देवऑप्स पैक बिल भेजो", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "देवऑप्स पैक", amount: 125.0, currency: "USD" } },
 
   // --- 10 English Utterances ---
-  { lang: "en-US", utterance: "Send Rahul an invoice for 200 dollars of Grade-A wheat", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Grade-A Wheat", amount: 200.0, currency: "USD" } },
-  { lang: "en-US", utterance: "Create an invoice for Rahul for 150 USD of cotton seed", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Cotton Seed", amount: 150.0, currency: "USD" } },
-  { lang: "en-US", utterance: "Bill Rahul 300 USD for soybean export", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Soybean Export", amount: 300.0, currency: "USD" } },
-  { lang: "en-US", utterance: "Send Rahul an invoice of 500 EUR for organic rice", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Organic Rice", amount: 500.0, currency: "EUR" } },
-  { lang: "en-US", utterance: "Invoice Rahul for 800 USD of wheat shipment", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Wheat Shipment", amount: 800.0, currency: "USD" } },
-  { lang: "en-US", utterance: "Send a 250 USD seed invoice to Rahul", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Seed", amount: 250.0, currency: "USD" } },
-  { lang: "en-US", utterance: "Bill Rahul 400 EUR for basmati export", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Basmati Export", amount: 400.0, currency: "EUR" } },
-  { lang: "en-US", utterance: "Send Rahul an invoice for 100 USD soil testing pack", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Soil Testing Pack", amount: 100.0, currency: "USD" } },
-  { lang: "en-US", utterance: "Invoice Rahul 600 USD for exported spices", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Exported Spices", amount: 600.0, currency: "USD" } },
-  { lang: "en-US", utterance: "Bill Rahul 125 USD for agri dispatch inspection", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Agri Dispatch Inspection", amount: 125.0, currency: "USD" } },
+  { lang: "en-US", utterance: "Send an invoice for 200 US dollars to Rahul for Cloud API Development", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Cloud API Development", amount: 200.0, currency: "USD" } },
+  { lang: "en-US", utterance: "Create an invoice for Rahul for 150 USD of UI/UX Design Sprint", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "UI/UX Design Sprint", amount: 150.0, currency: "USD" } },
+  { lang: "en-US", utterance: "Bill Rahul 300 USD for Cloud Architecture Setup", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Cloud Architecture Setup", amount: 300.0, currency: "USD" } },
+  { lang: "en-US", utterance: "Send Rahul an invoice of 500 EUR for Mobile App Development", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Mobile App Development", amount: 500.0, currency: "EUR" } },
+  { lang: "en-US", utterance: "Invoice Rahul for 800 USD of API Microservices Backend", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "API Microservices Backend", amount: 800.0, currency: "USD" } },
+  { lang: "en-US", utterance: "Send a 250 USD Cybersecurity Audit invoice to Rahul", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Cybersecurity Audit", amount: 250.0, currency: "USD" } },
+  { lang: "en-US", utterance: "Bill Rahul 400 EUR for Database Migration", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Database Migration", amount: 400.0, currency: "EUR" } },
+  { lang: "en-US", utterance: "Send Rahul an invoice for 100 USD Code Review package", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Code Review Package", amount: 100.0, currency: "USD" } },
+  { lang: "en-US", utterance: "Invoice Rahul 600 USD for Full-Stack React Development", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "Full-Stack React Development", amount: 600.0, currency: "USD" } },
+  { lang: "en-US", utterance: "Bill Rahul 125 USD for DevOps Automation Pipeline", intent: { action: "create_invoice", buyer_token: "BUYER_RAHUL_01", item: "DevOps Automation Pipeline", amount: 125.0, currency: "USD" } },
 ];
 
 export async function runFullBenchmark() {
@@ -167,7 +167,7 @@ export async function runFullBenchmark() {
 
   // Suite 3: WebAuthn Origin/RP_ID & Single-Use Digest Binding
   const authStart = Date.now();
-  const testPayload = { item: "Wheat Lot #44", amount: 200.0, buyer: "BUYER_RAHUL_01" };
+  const testPayload = { item: "Cloud API Development", amount: 200.0, buyer: "BUYER_RAHUL_01" };
   const challengeRecord = createPayloadBoundChallenge(testPayload, { origin: "http://localhost:8888", rpId: "localhost" });
   const validAssertion = verifyPasskeyAssertion({
     challengeId: challengeRecord.challengeId,
@@ -245,9 +245,9 @@ export async function runFullBenchmark() {
   // Suite 5: Encrypted PDF + Raw PayPal JSON Line-Item Sum Reconciliation
   const pdfStart = Date.now();
   const sampleTransactions = [
-    { id: "TX-BENCH-01", amount: 200.0, fee: 7.47, date: "2026-11-01", description: "Grade-A Wheat Export" },
-    { id: "TX-BENCH-02", amount: 450.0, fee: 16.2, date: "2026-11-04", description: "Organic Cotton Seeds" },
-    { id: "TX-BENCH-03", amount: 150.0, fee: 5.73, date: "2026-11-08", description: "Mustard Seed Lot #88" },
+    { id: "TX-BENCH-01", amount: 200.0, fee: 7.47, date: "2026-11-01", description: "Cloud API Development" },
+    { id: "TX-BENCH-02", amount: 450.0, fee: 16.2, date: "2026-11-04", description: "UI/UX Design Sprint" },
+    { id: "TX-BENCH-03", amount: 150.0, fee: 5.73, date: "2026-11-08", description: "Microservices Architecture" },
   ];
   const totals = computeTransactionTotals(sampleTransactions);
   const reconciliation = reconcilePdfTotalsWithRawJson(sampleTransactions, totals);
@@ -260,7 +260,7 @@ export async function runFullBenchmark() {
     caGstCompliance: {
       panToken: "AABCP****M",
       iecCode: "0312049921",
-      rbiPurposeCode: "P0103 - Agricultural Exports",
+      rbiPurposeCode: "P0802 - Software Development Services",
       gstStatus: "Export under LUT without payment of IGST",
       invoiceStatus: "PAID / COMPLETED",
     },
@@ -335,14 +335,14 @@ export async function runFullBenchmark() {
     buyerToken: "BUYER_RAHUL_01",
     amount: 100.0,
     currency: "USD",
-    item: "Grade-A Wheat",
+    item: "Cloud API Development",
   });
   const writeSuccess = await testToolkit.create_invoice({
     securityExecutionTicket: validTicket,
     buyerToken: "BUYER_RAHUL_01",
     amount: 100.0,
     currency: "USD",
-    item: "Grade-A Wheat",
+    item: "Cloud API Development",
   });
 
   // 3. Replay with consumed ticket must be blocked
@@ -353,7 +353,7 @@ export async function runFullBenchmark() {
       buyerToken: "BUYER_RAHUL_01",
       amount: 100.0,
       currency: "USD",
-      item: "Grade-A Wheat",
+      item: "Cloud API Development",
     });
   } catch (err) {
     replayBlocked = err.message.includes("BLOCKED") || err.message.includes("consumed");
@@ -429,15 +429,15 @@ export async function runFullBenchmark() {
   const csvStart = Date.now();
 
   // 1. Formula injection CSV checks
-  const maliciousCsv = `Date,Amount,Fee,Description\n2026-11-10,=cmd|' /C calc'!A0,3.98,Wheat Export\n2026-11-11,@SUM(A1:A10),7.47,Cotton Shipment`;
+  const maliciousCsv = `Date,Amount,Fee,Description\n2026-11-10,=cmd|' /C calc'!A0,3.98,Cloud API Export\n2026-11-11,@SUM(A1:A10),7.47,SaaS Development`;
   const csvBlockCheck = sanitizeAndValidateCsvLedger(maliciousCsv);
 
   // 2. Clean CSV with valid numbers
-  const cleanCsv = `Date,Amount,Fee,Description,Currency,Buyer\n2026-11-10,200.00,7.47,Organic Wheat,USD,BUYER_RAHUL_01\n2026-11-11,-15.00,0.52,Dispute Fee,USD,BUYER_RAHUL_01`;
+  const cleanCsv = `Date,Amount,Fee,Description,Currency,Buyer\n2026-11-10,200.00,7.47,Cloud API Development,USD,BUYER_RAHUL_01\n2026-11-11,-15.00,0.52,Dispute Fee,USD,BUYER_RAHUL_01`;
   const csvCleanCheck = sanitizeAndValidateCsvLedger(cleanCsv);
 
   // 3. Dynamic RBI Purpose Code checks
-  const goodsRbi = classifyRbiPurposeCode("Grade-A Wheat (100 kg)");
+  const goodsRbi = classifyRbiPurposeCode("Physical Server Rack Hardware");
   const servicesRbi = classifyRbiPurposeCode("Full-Stack React Development");
   const rbiPassed =
     goodsRbi.purposeCode === "P0103" &&
@@ -554,7 +554,7 @@ export async function runFullBenchmark() {
   const a13_temporalMotion = mStatic.verified === false && mStrobe.verified === false && mHuman.verified === true;
 
   // 14. Read-back digest validation
-  const staged = { buyer_token: "BUYER_RAHUL_01", amount: 200, currency: "USD", item: "Wheat" };
+  const staged = { buyer_token: "BUYER_RAHUL_01", amount: 200, currency: "USD", item: "Cloud API Development" };
   const rbDigest = computeReadBackDigest(staged, "en");
   const rbOk = verifyReadBackConfirmation({ stagedInvoice: staged, language: "en", confirmationDigest: rbDigest });
   const a14_readBackValid = rbOk.valid === true;

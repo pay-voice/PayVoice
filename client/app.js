@@ -5,13 +5,13 @@
 // Cart payload sent to backend
 const currentCart = [
   {
-    name: "Wheat Grain Grade-A (Bulk)",
+    name: "Cloud API Development (Milestone 1)",
     unit_amount: "75.00",
     quantity: 1,
     currency_code: "USD",
   },
   {
-    name: "Mandated Inspection & Logistics",
+    name: "DevOps Deployment & Configuration",
     unit_amount: "25.00",
     quantity: 1,
     currency_code: "USD",
