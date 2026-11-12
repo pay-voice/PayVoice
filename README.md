@@ -73,7 +73,7 @@ Paypal/
 | `POST` | `/api/invoices/execute` | Verifies WebAuthn assertion signature, dispatches PayPal invoice (`DRAFT` $\to$ `SENT`), updates audit ledger |
 | `POST` | `/api/statements/pdf` | Generates password-encrypted PDF statement for export transactions |
 | `GET` | `/api/transactions` | Lists recent cross-border export transactions |
-| `GET` | `/api/insights` | Retrieves merchant export performance analytics |
+| `GET` | `/api/transactions/insights` | Retrieves merchant export performance analytics |
 | `POST` | `/api/webhooks/paypal` | Ingests PayPal webhook notifications (e.g. `INVOICING.INVOICE.PAID`) |
 | `GET` | `/api/audit-ledger` | Fetches the full cryptographic audit ledger |
 | `GET` | `/api/audit-ledger/verify` | Validates hash integrity of the entire chain from Genesis |

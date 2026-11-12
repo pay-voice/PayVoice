@@ -1,313 +1,276 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PayVoice: Secure Multilingual Financial Agent | PayPal AI Hackathon 2026</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Overview — PayVoice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="css/design-tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/pages.css" />
 </head>
+
 <body>
-  <div class="container">
-    <!-- Header & Merchant Profile -->
-    <header class="header">
-      <div class="brand-section">
-        <svg width="40" height="40" viewBox="0 0 127 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M38.7467 10.3502C38.7467 15.29 34.1861 21.1295 27.2961 21.1295H20.6583L20.3368 23.1871L18.7851 33.1072H10.5264L15.4912 1.16797H28.867C33.3679 1.16797 36.9159 3.68412 38.2134 7.17898C38.5811 8.16925 38.7678 9.23852 38.7467 10.3502Z" fill="#ffffff"/>
-          <path d="M43.5093 19.5338C42.5968 25.0728 37.8341 29.1167 32.2108 29.1167H27.6001L25.675 41.0944H17.4663L18.7831 33.1086L20.3347 23.1885L20.6562 21.1309H27.294C34.184 21.1309 38.7446 15.2914 38.7446 10.3516C38.7446 10.3516 38.7485 10.3516 38.7485 10.3535C42.1405 12.1009 44.1138 15.6439 43.5074 19.5338H43.5093Z" fill="#60CDFF"/>
-          <path d="M38.7466 10.3507C37.3278 9.60124 35.6048 9.15234 33.7298 9.15234H22.5333L20.6582 21.1301H27.296C34.186 21.1301 38.7466 15.2905 38.7466 10.3507Z" fill="#008CFF"/>
-        </svg>
-        <div class="brand-title">
-          <h1>PayVoice</h1>
-          <p>Indian MSME Cross-Border Exporter Portal &bull; PayPal AI Hackathon 2026</p>
-        </div>
-      </div>
-      <div class="exporter-credentials">
-        <span class="badge-tag">DGFT IEC: 0319088821</span>
-        <span class="badge-tag">GST LUT: Rule 96A Active</span>
-        <span class="badge-tag">OPGSP Pathway</span>
-        <span class="badge-tag pulse-green" id="sandbox-badge">🟢 Live Sandbox Connected</span>
-      </div>
-    </header>
+  <div class="app-shell">
+    <div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
 
-    <!-- Top CFO Metrics Intelligence Bar -->
-    <div class="cfo-metrics-grid">
-      <div class="metric-card">
-        <div class="metric-label">
-          <span>Gross Foreign Inflows</span>
-          <span>🌐 USD/EUR/GBP</span>
-        </div>
-        <div class="metric-value" id="cfo-gross-val">$1,500.00</div>
-        <div class="metric-subtext" id="cfo-gross-sub">Across 4 verified export contracts</div>
+    <!-- Navigation Sidebar -->
+    <aside id="sidebar" class="sidebar" aria-label="Primary Navigation">
+      <div class="sidebar-brand">
+        <a href="#overview" class="brand-mark">
+          <div class="brand-icon" aria-hidden="true">PV</div>
+          <div class="brand-text">
+            <span class="brand-name">PayVoice</span>
+            <span class="brand-sub">India OPGSP Exporter</span>
+          </div>
+        </a>
+        <button type="button" id="sidebar-close-btn" class="sidebar-close-btn" aria-label="Close navigation menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
-      <div class="metric-card">
-        <div class="metric-label">
-          <span>Estimated PayPal Fees</span>
-          <span>⚡ 4.4% + $0.30</span>
-        </div>
-        <div class="metric-value" id="cfo-fee-val">$67.00</div>
-        <div class="metric-subtext">Automated merchant fee reconciliation</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-label">
-          <span>Net INR Realization</span>
-          <span>🇮🇳 Live Calibrated FX</span>
-        </div>
-        <div class="metric-value metric-accent-inr" id="cfo-inr-val">₹1,24,530</div>
-        <div class="metric-subtext">Direct to Indian Bank Account via e-FIRC</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-label">
-          <span>OPGSP Cap Headroom</span>
-          <span>📜 $2,500 / Invoice</span>
-        </div>
-        <div class="metric-value metric-accent-cap" id="cfo-cap-val">$2,000.00</div>
-        <div class="metric-subtext">Statutory single invoice regulatory allowance</div>
-      </div>
-    </div>
-
-    <!-- Main Stage Grid -->
-    <div class="main-stage-grid">
-      <!-- Left Column: Voice Console, Staged Invoice, Buyers -->
-      <div style="display: flex; flex-direction: column; gap: 24px;">
-        <!-- Card 1: Multilingual Voice & AI Agent Console -->
-        <div class="card">
-          <div class="card-title">
-            <h2>🎙️ Multilingual Financial Agent Console</h2>
-            <span class="badge-tag" style="background:#e0f2fe; color:#0369a1; border:none;" id="active-lang-badge">Marathi (मराठी)</span>
-          </div>
-
-          <div class="voice-console">
-            <!-- Language Bar -->
-            <div class="lang-selector-bar">
-              <button class="lang-btn active" data-lang="mr">मराठी (Marathi)</button>
-              <button class="lang-btn" data-lang="hi">हिंदी (Hindi)</button>
-              <button class="lang-btn" data-lang="en">English (US/UK)</button>
-            </div>
-
-            <!-- Big Mic Zone -->
-            <div class="mic-zone" id="mic-zone">
-              <button class="mic-button" id="mic-button" title="Click to speak">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-                  <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-                </svg>
-              </button>
-              <div class="mic-hint" id="mic-status-hint">
-                Tap microphone and speak naturally in Marathi, Hindi, or English
-              </div>
-            </div>
-
-            <!-- Live Transcript Input Bar -->
-            <div class="transcript-input-area">
-              <input
-                type="text"
-                id="transcript-input"
-                class="transcript-input"
-                placeholder="Or type voice command (e.g., 'Rahul la 200 dollars cha software project invoice pathav')..."
-              />
-              <button class="btn-primary" id="btn-process-transcript">
-                <span>Stage Invoice</span>
-                <span>⚡</span>
-              </button>
-            </div>
-
-            <!-- Quick Demo Chips -->
-            <div class="quick-chips-wrapper">
-              <h4>🎯 Live Judge Demo Utterances (Zero-Click Staging):</h4>
-              <div class="chips-container">
-                <button class="demo-chip" data-text="राहुलला २०० डॉलर्सचा सॉफ्टवेअर प्रोजेक्ट इनव्हॉईस पाठवा" data-lang="mr">
-                  🇲🇷 "राहुलला २०० डॉलर्सचा सॉफ्टवेअर प्रोजेक्ट इनव्हॉईस पाठवा"
-                </button>
-                <button class="demo-chip" data-text="Rahul la 200 dollars cha software project invoice pathav" data-lang="mr">
-                  🇲🇷 "Rahul la 200 dollars cha invoice pathav"
-                </button>
-                <button class="demo-chip" data-text="राहुल को 200 डॉलर का क्लाउड एपीआई बिल भेजो" data-lang="hi">
-                  🇮🇳 "राहुल को 200 डॉलर का क्लाउड एपीआई बिल भेजो"
-                </button>
-                <button class="demo-chip" data-text="Bill Elena 450 EUR for UI/UX Design Sprint" data-lang="en">
-                  🇪🇺 "Bill Elena 450 EUR for UI/UX Design Sprint"
-                </button>
-                <button class="demo-chip" data-text="Bill Oliver 350 GBP for Security Penetration Audit" data-lang="en">
-                  🇬🇧 "Bill Oliver 350 GBP for Security Penetration Audit"
-                </button>
-                <button class="demo-chip" data-text="Bill Akira 500 USD for Embedded Firmware Module" data-lang="en">
-                  🇯🇵 "Bill Akira 500 USD for Embedded Firmware Module"
-                </button>
-                <button class="demo-chip" data-text="Show my last 30 days encrypted statement" data-lang="en">
-                  📄 "Show my last 30 days encrypted statement"
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card 2: Staged Invoice Preview & Step-Up WebAuthn Execution -->
-        <div class="card" id="staged-card" style="display: none;">
-          <div class="card-title">
-            <h2>📋 Staged Cross-Border Invoice Preview</h2>
-            <span class="badge-tag" style="background:#fef3c7; color:#92400e; border:none;" id="staged-status-badge">Awaiting Biometric Authorization</span>
-          </div>
-
-          <div class="staged-preview-box">
-            <div class="staged-header">
-              <div class="staged-buyer-info">
-                <h3 id="preview-buyer-name">Rahul Mehta</h3>
-                <p id="preview-buyer-details">BUYER_RAHUL_01 &bull; TechGlobal Corp (US) &bull; United States</p>
-              </div>
-              <div class="staged-amount-box">
-                <div class="amount" id="preview-amount">$200.00 USD</div>
-                <div class="inr-tag" id="preview-inr">~₹17,370 INR Realization</div>
-              </div>
-            </div>
-
-            <div class="staged-line-items">
-              <div>
-                <strong id="preview-item">Cloud API Development</strong>
-                <p style="font-size:12px; color:var(--text-muted);" id="preview-quantity">Sprint Milestone 1 &bull; 1 Milestone</p>
-              </div>
-              <span class="badge-tag" style="background:#e2e8f0; color:#334155; font-size:11px;">Standard Export Term: Net 15</span>
-            </div>
-
-            <!-- Compliance Stamping Block -->
-            <div class="staged-compliance-pills">
-              <span class="compliance-pill pill-rbi" id="preview-rbi">RBI Export Code: P0802 (Software Consultancy)</span>
-              <span class="compliance-pill pill-lut" id="preview-lut">GST LUT: Rule 96A Zero-Rated (No IGST)</span>
-              <span class="compliance-pill pill-hash" id="preview-hash" title="Payload SHA-256 Digest">SHA-256: 8a4f...e91c</span>
-            </div>
-
-            <!-- Passkey Execution Bar -->
-            <div class="passkey-action-bar">
-              <button class="btn-passkey" id="btn-execute-passkey">
-                <span>🔐 Authorize & Send Invoice with Biometric Passkey</span>
-              </button>
-              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                <label class="toggle-group">
-                  <input type="checkbox" id="check-auto-settle" checked />
-                  <span>Auto-settle to PAID in 5 seconds (Live Video Demo Mode)</span>
-                </label>
-                <button id="btn-speech-repeat" style="background:none; border:none; color:var(--primary-color); font-size:12px; cursor:pointer; text-decoration:underline;">
-                  🔊 Replay Voice Read-Back
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card 3: Pre-Seeded International Client Vault -->
-        <div class="card">
-          <div class="card-title">
-            <h2>🏢 Allowlisted International Buyers (AES-256-GCM Vault)</h2>
-            <span class="badge-tag" style="background:#f1f5f9; color:#475569;">4 Contracts Active</span>
-          </div>
-          <div class="buyer-grid" id="buyer-grid">
-            <!-- Rendered dynamically -->
-          </div>
-        </div>
-      </div>
-
-      <!-- Right Column: Live Invoicing Lifecycle Timeline, PDF Statement, Audit Ledger -->
-      <div style="display: flex; flex-direction: column; gap: 24px;">
-        <!-- Card 4: Real-Time Lifecycle Timeline Tracker -->
-        <div class="card">
-          <div class="card-title">
-            <h2>⚡ Live Invoicing Lifecycle Tracker</h2>
-            <span class="badge-tag pulse-green" id="live-invoice-badge">STANDBY</span>
-          </div>
-
-          <div class="lifecycle-timeline" id="lifecycle-timeline">
-            <div class="timeline-step" id="step-voice">
-              <div class="step-bullet">1</div>
-              <div class="step-content">
-                <h4>Multilingual Voice Capture & PII Tokenization</h4>
-                <p>Intent extracted, buyer de-identified to vault token</p>
-              </div>
-            </div>
-
-            <div class="timeline-step" id="step-policy">
-              <div class="step-bullet">2</div>
-              <div class="step-content">
-                <h4>Deterministic Money Guide & RBI Code Stamping</h4>
-                <p>$2,500 OPGSP cap checked, RBI purpose code stamped</p>
-              </div>
-            </div>
-
-            <div class="timeline-step" id="step-auth">
-              <div class="step-bullet">3</div>
-              <div class="step-content">
-                <h4>WebAuthn Hardware Passkey Signature</h4>
-                <p>FIDO2 biometric proof bound to payload SHA-256 hash</p>
-              </div>
-            </div>
-
-            <div class="timeline-step" id="step-draft">
-              <div class="step-bullet">4</div>
-              <div class="step-content">
-                <h4>PayPal Sandbox Draft Invoice Created</h4>
-                <p>Guarded @paypal/agent-toolkit create_invoice ticket executed</p>
-              </div>
-            </div>
-
-            <div class="timeline-step" id="step-sent">
-              <div class="step-bullet">5</div>
-              <div class="step-content">
-                <h4>Dispatched to International Buyer via Email</h4>
-                <p>Guarded send_invoice executed atomically (Zero manual clicks)</p>
-              </div>
-            </div>
-
-            <div class="timeline-step" id="step-paid">
-              <div class="step-bullet">6</div>
-              <div class="step-content">
-                <h4>Cross-Border Inward Remittance Settled (PAID)</h4>
-                <p>OPGSP remittance completed &bull; Auto e-FIRC ready</p>
-              </div>
-            </div>
-          </div>
-
-          <div style="margin-top: 10px; display: flex; gap: 8px;">
-            <button class="btn-primary" id="btn-manual-settle" style="width:100%; display:none; background:#059669;">
-              ✅ Simulate Buyer Settlement (Transition to PAID)
+      <nav class="sidebar-nav">
+        <div>
+          <div class="nav-group-label">Workspace</div>
+          <div class="nav-list">
+            <button type="button" class="nav-item active" data-route="overview">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                aria-hidden="true">
+                <rect x="3" y="3" width="7" height="9" rx="1" />
+                <rect x="14" y="3" width="7" height="5" rx="1" />
+                <rect x="14" y="12" width="7" height="9" rx="1" />
+                <rect x="3" y="16" width="7" height="5" rx="1" />
+              </svg>
+              <span>Overview</span>
+            </button>
+            <button type="button" class="nav-item" data-route="voice">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                aria-hidden="true">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" x2="12" y1="19" y2="22" />
+              </svg>
+              <span>Voice Assistant</span>
+              <span class="nav-badge">AI</span>
             </button>
           </div>
         </div>
 
-        <!-- Card 5: Encrypted PDF Accounting Statements -->
-        <div class="card">
-          <div class="card-title">
-            <h2>📑 Encrypted PDF Accounting Statement</h2>
-            <span class="badge-tag" style="background:#ede9fe; color:#6d28d9;">CA/GST Rule 96A</span>
+        <div>
+          <div class="nav-group-label">Operations</div>
+          <div class="nav-list">
+            <button type="button" class="nav-item" data-route="invoices">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" x2="8" y1="13" y2="13" />
+                <line x1="16" x2="8" y1="17" y2="17" />
+              </svg>
+              <span>Invoices</span>
+            </button>
+            <button type="button" class="nav-item" data-route="transactions">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                aria-hidden="true">
+                <line x1="12" x2="12" y1="2" y2="22" />
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+              <span>Transactions</span>
+            </button>
           </div>
-          <p style="font-size:13px; color:var(--text-muted);">
-            Generates a password-protected PDF statement formatted with export line items, deterministic fee reconciliations, and the immutable hash chain root.
-          </p>
-          <div style="background:#f8fafc; padding:12px; border-radius:10px; border:1px solid var(--border-color); font-size:12px; color:#334155;">
-            <strong>Default Security Unlock PIN:</strong> <code>PAYVOICE2026</code>
+        </div>
+
+        <div>
+          <div class="nav-group-label">Intelligence</div>
+          <div class="nav-list">
+            <button type="button" class="nav-item" data-route="money-guide">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                aria-hidden="true">
+                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                <polyline points="16 7 22 7 22 13" />
+              </svg>
+              <span>Money Guide AI</span>
+            </button>
+            <button type="button" class="nav-item" data-route="statements">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                aria-hidden="true">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span>Statements</span>
+            </button>
           </div>
-          <button class="btn-primary" id="btn-download-pdf" style="background:var(--primary-dark);">
-            <span>Download Encrypted Statement (PDF)</span>
-            <span>🔒</span>
+        </div>
+
+        <div>
+          <div class="nav-group-label">Compliance</div>
+          <div class="nav-list">
+            <button type="button" class="nav-item" data-route="buyers">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <span>Buyers</span>
+            </button>
+            <button type="button" class="nav-item" data-route="security">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span>Security &amp; Audit</span>
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="nav-group-label">System</div>
+          <div class="nav-list">
+            <button type="button" class="nav-item" data-route="settings">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <span>Settings</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="security-status-pill" id="sidebar-security-pill">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>AES-256 &amp; SHA-256 Active</span>
+        </div>
+        <div class="merchant-mini-card">
+          <div class="merchant-avatar" aria-hidden="true">MS</div>
+          <div class="merchant-meta">
+            <strong>PayVoice Exporter</strong>
+            <span>IEC 0319088821 &bull; Rule 96A</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Shell -->
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button type="button" id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Open navigation menu"
+            aria-expanded="false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              aria-hidden="true">
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <span class="crumb-root">PayVoice</span>
+            <span aria-hidden="true">/</span>
+            <span class="crumb-current" id="breadcrumb-current">Overview</span>
+          </nav>
+        </div>
+
+        <div class="topbar-right">
+          <div id="env-indicator" class="env-indicator" title="PayPal API Environment">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span class="env-text-short">Sandbox</span>
+            <span class="env-text-full">PayPal Sandbox</span>
+          </div>
+
+          <select id="topbar-lang-select" class="lang-pill-select" aria-label="Select active voice language">
+            <option value="mr">मराठी (MR)</option>
+            <option value="hi">हिंदी (HI)</option>
+            <option value="en">English (EN)</option>
+          </select>
+
+          <div class="popover-wrap">
+            <button type="button" id="notif-toggle-btn" class="topbar-icon-btn" aria-label="Toggle notifications"
+              aria-expanded="false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                aria-hidden="true">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              <span id="notif-dot" class="notif-dot"></span>
+            </button>
+            <div id="notif-popover" class="popover-panel" role="dialog" aria-label="Notifications">
+              <div class="popover-head">
+                <span>Notifications</span>
+                <button type="button" id="notif-mark-read" class="btn btn-ghost btn-sm" style="min-height:26px;">Mark
+                  all read</button>
+              </div>
+              <div id="notif-list" class="popover-list"></div>
+            </div>
+          </div>
+
+          <button type="button" id="theme-toggle-btn" class="topbar-icon-btn" aria-label="Toggle light or dark theme"
+            title="Toggle theme">
+            <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+            <svg id="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" aria-hidden="true" style="display:none;">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
           </button>
         </div>
+      </header>
 
-        <!-- Card 6: Sequential Cryptographic Audit Ledger Stream -->
+      <main id="page-mount" class="main-content" tabindex="-1">
         <div class="card">
-          <div class="card-title">
-            <h2>📜 Immutable Sequential Audit Ledger</h2>
-            <button id="btn-verify-ledger" style="background:none; border:none; color:var(--primary-color); font-size:12px; font-weight:700; cursor:pointer;">
-              Verify Chain Integrity 🛡️
-            </button>
-          </div>
-          <div class="audit-stream-box" id="audit-stream-box">
-            <!-- Dynamic stream rows -->
-          </div>
+          <div class="skeleton" style="height:28px;width:240px;"></div>
+          <div class="skeleton" style="height:120px;width:100%;"></div>
         </div>
-      </div>
+      </main>
     </div>
   </div>
 
+  <!-- Accessible Modal Container -->
+  <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">
+    <div id="modal-panel" class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <h2 id="modal-title">Modal Title</h2>
+        <button type="button" id="modal-close-btn" class="modal-close" aria-label="Close modal">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+      <div id="modal-footer" class="modal-footer"></div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
   <script type="module" src="app.js"></script>
 </body>
+
 </html>
