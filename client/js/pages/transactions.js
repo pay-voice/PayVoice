@@ -1,11 +1,12 @@
 /**
  * Page 4: Transactions Dashboard
  * Displays backend transactions from GET /api/transactions with search, filtering,
- * sorting, pagination, deterministic totals, and transaction inspection modal.
+ * sorting, pagination, deterministic totals, CSV ledger export, and transaction inspection modal.
  */
 
 import { api } from "../api.js";
 import { store } from "../store.js";
+import { navigateTo } from "../router.js";
 import {
   escapeHtml,
   formatCurrency,
@@ -23,22 +24,151 @@ let statusFilter = "ALL";
 let sortField = "date_desc";
 let currentPage = 1;
 const PAGE_SIZE = 8;
+let isFetching = false;
+
+/**
+ * Sanitize CSV cell values to prevent spreadsheet formula injection attacks
+ */
+function sanitizeCsvCell(val) {
+  let str = String(val ?? "");
+  if (/^[=\+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  if (/[",\n\r]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+/**
+ * Deterministically export transactions to a clean, formula-injection-safe CSV file
+ */
+function exportTransactionsCsv(transactions = []) {
+  if (!transactions.length) {
+    showToast({ title: "No Transactions", message: "No records to export.", type: "warning" });
+    return;
+  }
+
+  const headers = [
+    "Transaction ID",
+    "Invoice ID",
+    "Date",
+    "Buyer Name",
+    "Buyer Token",
+    "Deliverable",
+    "Currency",
+    "Gross Amount",
+    "PayPal Fee",
+    "Net Amount",
+    "Status",
+  ];
+
+  const rows = transactions.map((tx) => [
+    sanitizeCsvCell(tx.id),
+    sanitizeCsvCell(tx.invoiceId || ""),
+    sanitizeCsvCell(tx.date),
+    sanitizeCsvCell(tx.buyerName || "Overseas Buyer"),
+    sanitizeCsvCell(tx.buyerToken || ""),
+    sanitizeCsvCell(tx.item || tx.description || ""),
+    sanitizeCsvCell(tx.currency || "USD"),
+    Number(tx.grossAmount || tx.amount || 0).toFixed(2),
+    Number(tx.fee || 0).toFixed(2),
+    Number(tx.netAmount || 0).toFixed(2),
+    sanitizeCsvCell(tx.status || "COMPLETED"),
+  ]);
+
+  const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `payvoice-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(url);
+  a.remove();
+
+  showToast({
+    title: "CSV Ledger Exported",
+    message: `${transactions.length} verified records saved to CSV.`,
+    type: "success",
+  });
+}
+
+/**
+ * Compute fallback totals client-side when backend totals are not yet populated
+ */
+function getEffectiveTotals(txs, backendTotals) {
+  if (backendTotals && typeof backendTotals.totalGross === "number") {
+    return backendTotals;
+  }
+  let totalGross = 0;
+  let estimatedFees = 0;
+  const currency = txs[0]?.currency || "USD";
+  for (const t of txs) {
+    const gross = Number(t.grossAmount || t.amount || 0);
+    if (!isNaN(gross) && gross > 0) {
+      totalGross += gross;
+      const fee = Number(t.fee || (gross * 0.0349 + 0.49).toFixed(2));
+      estimatedFees += fee;
+    }
+  }
+  return {
+    count: txs.length,
+    currency,
+    totalGross: Number(totalGross.toFixed(2)),
+    estimatedFees: Number(estimatedFees.toFixed(2)),
+    totalNet: Number(Math.max(0, totalGross - estimatedFees).toFixed(2)),
+  };
+}
 
 export function renderTransactionsPage(mount) {
+  // Capture active search focus state to preserve cursor across re-renders
+  const activeEl = document.activeElement;
+  const isSearchFocused = activeEl && activeEl.id === "tx-search";
+  const searchCaretStart = isSearchFocused ? activeEl.selectionStart : null;
+  const searchCaretEnd = isSearchFocused ? activeEl.selectionEnd : null;
+
   const state = store.getState();
   const txs = state.transactions || [];
-  const totals = state.transactionTotals;
+  const totals = getEffectiveTotals(txs, state.transactionTotals);
+
+  // Auto-fetch if store has empty transactions and not currently fetching
+  if (txs.length === 0 && !isFetching) {
+    isFetching = true;
+    api
+      .getTransactions()
+      .then((res) => {
+        isFetching = false;
+        store.setState({
+          transactions: res.transactions || [],
+          transactionTotals: res.totals || null,
+          cfoInsights: res.cfoInsights || null,
+        });
+        renderTransactionsPage(mount);
+      })
+      .catch((err) => {
+        isFetching = false;
+        console.warn("[Transactions Auto-Fetch Notice]:", err.message);
+      });
+  }
+
+  // Derive dynamic filter lists
   const currencies = Array.from(new Set(txs.map((t) => String(t.currency || "USD").toUpperCase())));
+  const allKnownStatuses = Array.from(
+    new Set(["COMPLETED", "PAID", "REFUNDED", "PENDING", ...txs.map((t) => String(t.status || "").toUpperCase())].filter(Boolean))
+  );
 
   const filtered = txs.filter((tx) => {
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
     const matchSearch =
       !q ||
-      String(tx.id).toLowerCase().includes(q) ||
+      String(tx.id || "").toLowerCase().includes(q) ||
       String(tx.invoiceId || "").toLowerCase().includes(q) ||
       String(tx.buyerName || "").toLowerCase().includes(q) ||
       String(tx.buyerToken || "").toLowerCase().includes(q) ||
-      String(tx.item || "").toLowerCase().includes(q);
+      String(tx.item || "").toLowerCase().includes(q) ||
+      String(tx.description || "").toLowerCase().includes(q);
     const matchCurr = currencyFilter === "ALL" || String(tx.currency).toUpperCase() === currencyFilter;
     const matchStatus = statusFilter === "ALL" || String(tx.status).toUpperCase() === statusFilter;
     return matchSearch && matchCurr && matchStatus;
@@ -64,29 +194,36 @@ export function renderTransactionsPage(mount) {
         <p>Verified cross-border PayPal export settlements and fee reconciliation</p>
       </div>
       <div class="page-header-actions">
-        <button type="button" class="btn btn-secondary" id="tx-refresh-btn">Refresh Ledger</button>
+        <button type="button" class="btn btn-secondary" id="tx-export-csv-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV Ledger
+        </button>
+        <button type="button" class="btn btn-secondary" id="tx-refresh-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="margin-right:6px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Refresh Ledger
+        </button>
       </div>
     </div>
 
     <div class="kpi-grid">
       <div class="metric-card">
         <div class="metric-label">Verified Settlements</div>
-        <div class="metric-value tabular-nums">${totals ? totals.count : txs.length}</div>
+        <div class="metric-value tabular-nums">${totals.count}</div>
         <div class="metric-foot">Cross-border export records</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Total Gross (Native Sum)</div>
-        <div class="metric-value tabular-nums">${totals ? formatCurrency(totals.totalGross, totals.currency) : "—"}</div>
+        <div class="metric-value tabular-nums">${formatCurrency(totals.totalGross, totals.currency)}</div>
         <div class="metric-foot">Computed deterministically by Node.js</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Total PayPal Fees</div>
-        <div class="metric-value warning tabular-nums">${totals ? formatCurrency(totals.estimatedFees, totals.currency) : "—"}</div>
+        <div class="metric-value warning tabular-nums">${formatCurrency(totals.estimatedFees, totals.currency)}</div>
         <div class="metric-foot">Cross-border merchant fee</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Total Net Realized</div>
-        <div class="metric-value success tabular-nums">${totals ? formatCurrency(totals.totalNet, totals.currency) : "—"}</div>
+        <div class="metric-value success tabular-nums">${formatCurrency(totals.totalNet, totals.currency)}</div>
         <div class="metric-foot">Net payout before INR FX credit</div>
       </div>
     </div>
@@ -104,8 +241,7 @@ export function renderTransactionsPage(mount) {
           </select>
           <select id="tx-status-filter" class="filter-select" aria-label="Filter by status">
             <option value="ALL" ${statusFilter === "ALL" ? "selected" : ""}>All Statuses</option>
-            <option value="COMPLETED" ${statusFilter === "COMPLETED" ? "selected" : ""}>Completed</option>
-            <option value="REFUNDED" ${statusFilter === "REFUNDED" ? "selected" : ""}>Refunded</option>
+            ${allKnownStatuses.map((s) => `<option value="${s}" ${statusFilter === s ? "selected" : ""}>${s}</option>`).join("")}
           </select>
           <select id="tx-sort" class="filter-select" aria-label="Sort transactions">
             <option value="date_desc" ${sortField === "date_desc" ? "selected" : ""}>Newest First</option>
@@ -124,7 +260,7 @@ export function renderTransactionsPage(mount) {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Transaction & Invoice</th>
+                <th>Transaction &amp; Invoice</th>
                 <th>Buyer</th>
                 <th>Description</th>
                 <th>Status</th>
@@ -147,7 +283,7 @@ export function renderTransactionsPage(mount) {
                     <div style="font-weight:600;">${escapeHtml(tx.buyerName || "Overseas Buyer")}</div>
                     <div class="text-2xs-mono text-muted">${escapeHtml(tx.buyerToken || "")}</div>
                   </td>
-                  <td>${escapeHtml(tx.item || tx.description)}</td>
+                  <td>${escapeHtml(tx.item || tx.description || "Export Contract")}</td>
                   <td><span class="badge ${getStatusBadgeClass(tx.status)}">${escapeHtml(tx.status)}</span></td>
                   <td style="text-align:right;font-weight:600;" class="tabular-nums">${formatCurrency(tx.grossAmount || tx.amount, tx.currency)}</td>
                   <td style="text-align:right;color:var(--color-text-tertiary);" class="tabular-nums">-${formatCurrency(tx.fee || 0, tx.currency)}</td>
@@ -175,6 +311,22 @@ export function renderTransactionsPage(mount) {
     </div>
   `;
 
+  // Restore search input focus smoothly if it was active
+  if (isSearchFocused) {
+    const searchInput = document.getElementById("tx-search");
+    if (searchInput) {
+      searchInput.focus();
+      if (searchCaretStart !== null && searchCaretEnd !== null) {
+        try {
+          searchInput.setSelectionRange(searchCaretStart, searchCaretEnd);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
+  // Wire search and filter inputs
   document.getElementById("tx-search")?.addEventListener("input", (e) => {
     searchQuery = e.target.value;
     currentPage = 1;
@@ -214,7 +366,15 @@ export function renderTransactionsPage(mount) {
     renderTransactionsPage(mount);
   });
 
+  // Export CSV Ledger
+  document.getElementById("tx-export-csv-btn")?.addEventListener("click", () => {
+    exportTransactionsCsv(filtered.length ? filtered : txs);
+  });
+
+  // Refresh Ledger
   document.getElementById("tx-refresh-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("tx-refresh-btn");
+    if (btn) btn.disabled = true;
     try {
       const res = await api.getTransactions();
       store.setState({
@@ -223,12 +383,14 @@ export function renderTransactionsPage(mount) {
         cfoInsights: res.cfoInsights || null,
       });
       renderTransactionsPage(mount);
-      showToast({ title: "Transactions Synced", type: "success" });
+      showToast({ title: "Transactions Synced", message: `${res.transactions?.length || 0} records updated.`, type: "success" });
     } catch (err) {
       showToast({ title: "Sync Error", message: err.message, type: "error" });
+      if (btn) btn.disabled = false;
     }
   });
 
+  // Modal inspection dialog
   const openTxDetail = (tx) => {
     openModal({
       title: `Transaction ${tx.id}`,
@@ -248,14 +410,36 @@ export function renderTransactionsPage(mount) {
             <div class="kv-item"><div class="kv-label">PayPal Fee</div><div class="kv-val">${formatCurrency(tx.fee || 0, tx.currency)}</div></div>
             <div class="kv-item"><div class="kv-label">Net Settlement</div><div class="kv-val" style="color:var(--color-success);">${formatCurrency(tx.netAmount || 0, tx.currency)}</div></div>
           </div>
-          <div class="kv-item">
+          <div class="kv-item" style="margin-block-start:0.5rem;">
             <div class="kv-label">Service / Export Line Item</div>
-            <div class="kv-val">${escapeHtml(tx.item || tx.description)}</div>
+            <div class="kv-val">${escapeHtml(tx.item || tx.description || "N/A")}</div>
           </div>
         </div>
       `,
-      footerHtml: `<button type="button" class="btn btn-primary" id="tx-modal-close">Close</button>`,
-      onMount: () => document.getElementById("tx-modal-close")?.addEventListener("click", closeModal),
+      footerHtml: `
+        <button type="button" class="btn btn-secondary" id="tx-modal-copy-id">Copy TX ID</button>
+        ${
+          tx.invoiceId
+            ? `<button type="button" class="btn btn-secondary" id="tx-modal-view-inv">View Invoice</button>`
+            : ""
+        }
+        <button type="button" class="btn btn-primary" id="tx-modal-close">Close</button>
+      `,
+      onMount: () => {
+        document.getElementById("tx-modal-close")?.addEventListener("click", closeModal);
+        document.getElementById("tx-modal-copy-id")?.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(tx.id);
+            showToast({ title: "Copied", message: `TX ID ${tx.id} copied to clipboard.`, type: "success" });
+          } catch {
+            showToast({ title: "Copy", message: tx.id, type: "info" });
+          }
+        });
+        document.getElementById("tx-modal-view-inv")?.addEventListener("click", () => {
+          closeModal();
+          navigateTo("invoices");
+        });
+      },
     });
   };
 
@@ -272,4 +456,3 @@ export function renderTransactionsPage(mount) {
     });
   });
 }
-

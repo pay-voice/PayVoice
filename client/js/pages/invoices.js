@@ -6,6 +6,7 @@
 
 import { api } from "../api.js";
 import { store } from "../store.js";
+import { navigateTo } from "../router.js";
 import { openInvoicePreviewModal } from "../components/invoicePreviewModal.js";
 import { openPasskeyAuthModal } from "../components/passkeyModal.js";
 import {
@@ -24,39 +25,64 @@ let statusFilter = "ALL";
 let sortField = "date_desc";
 let currentPage = 1;
 const PAGE_SIZE = 8;
+let isFetchingInvoices = false;
 
 const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export function renderInvoicesPage(mount) {
+  // Capture active search input focus to preserve caret position
+  const activeEl = document.activeElement;
+  const isSearchFocused = activeEl && activeEl.id === "inv-search-input";
+  const searchCaretStart = isSearchFocused ? activeEl.selectionStart : null;
+  const searchCaretEnd = isSearchFocused ? activeEl.selectionEnd : null;
+
   const state = store.getState();
+
+  // Auto-fetch invoices and buyers if not loaded yet
+  if ((!state.invoices || state.invoices.length === 0) && !isFetchingInvoices) {
+    isFetchingInvoices = true;
+    Promise.all([api.listInvoices().catch(() => null), api.getBuyers().catch(() => null)])
+      .then(([invRes, buyersRes]) => {
+        isFetchingInvoices = false;
+        store.setState({
+          invoices: invRes?.invoices || [],
+          ...(buyersRes?.buyers ? { buyers: buyersRes.buyers } : {}),
+        });
+        renderInvoicesPage(mount);
+      })
+      .catch(() => {
+        isFetchingInvoices = false;
+      });
+  }
+
   const sessionInvoices = (state.invoices || []).map((inv) => ({
     ...inv,
     sourceLabel: "LIVE SESSION",
-    date: inv.createdAt,
+    date: inv.createdAt || inv.date || new Date().toISOString(),
   }));
 
   const stagedItem = state.currentStaged
     ? [
         {
           invoiceId: state.currentStaged.stageId,
-          buyerToken: state.currentStaged.stagedPayload.buyerToken,
-          buyerName: state.currentStaged.stagedPayload.buyerName,
-          buyerCompany: state.currentStaged.stagedPayload.buyerCompany,
-          item: state.currentStaged.stagedPayload.item,
-          quantity: state.currentStaged.stagedPayload.quantity,
-          amount: state.currentStaged.stagedPayload.amount,
-          currency: state.currentStaged.stagedPayload.currency,
-          rbiPurposeCode: state.currentStaged.stagedPayload.rbiPurposeCode,
-          lutStatus: state.currentStaged.stagedPayload.lutStatus,
+          buyerToken: state.currentStaged.stagedPayload?.buyerToken || "BUYER_UNKNOWN",
+          buyerName: state.currentStaged.stagedPayload?.buyerName || "Overseas Buyer",
+          buyerCompany: state.currentStaged.stagedPayload?.buyerCompany || "International Client",
+          item: state.currentStaged.stagedPayload?.item || "Service Deliverable",
+          quantity: state.currentStaged.stagedPayload?.quantity || "1 Milestone",
+          amount: state.currentStaged.stagedPayload?.amount || 0,
+          currency: state.currentStaged.stagedPayload?.currency || "USD",
+          rbiPurposeCode: state.currentStaged.stagedPayload?.rbiPurposeCode || "P0802",
+          lutStatus: state.currentStaged.stagedPayload?.lutStatus || "Export under LUT without payment of IGST",
           status: "STAGED",
-          date: state.currentStaged.stagedPayload.stagedAt,
+          date: state.currentStaged.stagedPayload?.stagedAt || new Date().toISOString(),
           sourceLabel: "AWAITING AUTH",
           _stagedRef: state.currentStaged,
           timeline: [
             {
               status: "STAGED",
               label: "Validated by Money Guide AI & bound to WebAuthn challenge",
-              timestamp: state.currentStaged.stagedPayload.stagedAt,
+              timestamp: state.currentStaged.stagedPayload?.stagedAt || new Date().toISOString(),
             },
           ],
         },
@@ -64,38 +90,46 @@ export function renderInvoicesPage(mount) {
     : [];
 
   // Include sandbox historical invoices derived from settled transactions
-  const historicalInvoices = (state.transactions || []).map((tx) => ({
-    invoiceId: tx.invoiceId,
-    buyerToken: tx.buyerToken,
-    buyerName: tx.buyerName,
-    buyerCompany: "Sandbox Export Contract",
-    item: tx.item,
-    quantity: "1 Contract",
-    amount: tx.grossAmount || tx.amount,
-    currency: tx.currency,
-    rbiPurposeCode: "P0802",
-    status: tx.status === "COMPLETED" ? "PAID" : tx.status,
-    date: tx.date,
-    sourceLabel: "SANDBOX RECORD",
-    timeline: [
-      { status: "DRAFT", label: "Sandbox Invoice Created", timestamp: tx.date },
-      { status: "SENT", label: "Sent to Buyer", timestamp: tx.date },
-      { status: "PAID", label: "Inward Remittance Settled", timestamp: tx.date },
-    ],
-  }));
+  const sessionIds = new Set(sessionInvoices.map((i) => i.invoiceId));
+  const stagedIds = new Set(stagedItem.map((i) => i.invoiceId));
+
+  const historicalInvoices = (state.transactions || [])
+    .filter((tx) => {
+      const invId = tx.invoiceId || tx.id;
+      return !sessionIds.has(invId) && !stagedIds.has(invId);
+    })
+    .map((tx) => ({
+      invoiceId: tx.invoiceId || tx.id,
+      buyerToken: tx.buyerToken || "BUYER_UNKNOWN",
+      buyerName: tx.buyerName || "Overseas Buyer",
+      buyerCompany: "Sandbox Export Contract",
+      item: tx.item || "Export Deliverable",
+      quantity: "1 Contract",
+      amount: tx.grossAmount || tx.amount || 200,
+      currency: tx.currency || "USD",
+      rbiPurposeCode: "P0802",
+      status: tx.status === "COMPLETED" ? "PAID" : tx.status || "PAID",
+      date: tx.date || new Date().toISOString(),
+      sourceLabel: "SANDBOX RECORD",
+      timeline: [
+        { status: "DRAFT", label: "Sandbox Invoice Created", timestamp: tx.date },
+        { status: "SENT", label: "Sent to Buyer", timestamp: tx.date },
+        { status: "PAID", label: "Inward Remittance Settled via OPGSP", timestamp: tx.date },
+      ],
+    }));
 
   const allInvoices = [...stagedItem, ...sessionInvoices, ...historicalInvoices];
 
   // Filter
   const filtered = allInvoices.filter((inv) => {
     const matchesStatus = statusFilter === "ALL" || String(inv.status).toUpperCase() === statusFilter;
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !q ||
-      String(inv.invoiceId).toLowerCase().includes(q) ||
-      String(inv.buyerName).toLowerCase().includes(q) ||
-      String(inv.buyerToken).toLowerCase().includes(q) ||
-      String(inv.item).toLowerCase().includes(q);
+      String(inv.invoiceId || "").toLowerCase().includes(q) ||
+      String(inv.buyerName || "").toLowerCase().includes(q) ||
+      String(inv.buyerToken || "").toLowerCase().includes(q) ||
+      String(inv.item || "").toLowerCase().includes(q);
     return matchesStatus && matchesSearch;
   });
 
@@ -118,8 +152,14 @@ export function renderInvoicesPage(mount) {
         <p>Manage staged, draft, sent, and paid cross-border PayPal invoices</p>
       </div>
       <div class="page-header-actions">
-        <button type="button" class="btn btn-secondary" id="inv-refresh-btn">Sync Invoices</button>
-        <button type="button" class="btn btn-primary" id="inv-new-btn">Create Invoice</button>
+        <button type="button" class="btn btn-secondary" id="inv-refresh-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="margin-right:6px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Sync Invoices
+        </button>
+        <button type="button" class="btn btn-primary" id="inv-new-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Create Invoice
+        </button>
       </div>
     </div>
 
@@ -231,6 +271,22 @@ export function renderInvoicesPage(mount) {
     </div>
   `;
 
+  // Restore search input focus smoothly
+  if (isSearchFocused) {
+    const searchInput = document.getElementById("inv-search-input");
+    if (searchInput) {
+      searchInput.focus();
+      if (searchCaretStart !== null && searchCaretEnd !== null) {
+        try {
+          searchInput.setSelectionRange(searchCaretStart, searchCaretEnd);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
+  // Wire search and filter inputs
   document.getElementById("inv-search-input")?.addEventListener("input", (e) => {
     searchQuery = e.target.value;
     currentPage = 1;
@@ -265,13 +321,16 @@ export function renderInvoicesPage(mount) {
   });
 
   document.getElementById("inv-refresh-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("inv-refresh-btn");
+    if (btn) btn.disabled = true;
     try {
       const res = await api.listInvoices();
       store.setState({ invoices: res.invoices || [] });
       renderInvoicesPage(mount);
-      showToast({ title: "Invoices Updated", type: "success" });
+      showToast({ title: "Invoices Updated", message: `${res.invoices?.length || 0} invoices synced.`, type: "success" });
     } catch (err) {
       showToast({ title: "Refresh Failed", message: err.message, type: "error" });
+      if (btn) btn.disabled = false;
     }
   });
 
@@ -293,7 +352,7 @@ function openCreateInvoiceModal(mount) {
     bodyHtml: `
       <div class="alert alert-info">
         <div class="alert-content">
-          <span class="alert-title">Deterministic Guardrail & Passkey Flow</span>
+          <span class="alert-title">Deterministic Guardrail &amp; Passkey Flow</span>
           <span>All manual invoices pass through Money Guide policy validation ($2,500 USD cap, allowlist, duplicate window) and require WebAuthn passkey authorization before dispatch.</span>
         </div>
       </div>
@@ -309,7 +368,9 @@ function openCreateInvoiceModal(mount) {
                         `<option value="${escapeHtml(b.buyerToken)}">${escapeHtml(b.displayName)} (${escapeHtml(b.buyerToken)}) — ${escapeHtml(b.currency)}</option>`
                     )
                     .join("")
-                : `<option value="BUYER_RAHUL_01">Rahul Mehta (BUYER_RAHUL_01)</option>`
+                : `<option value="BUYER_RAHUL_01">Rahul Mehta (BUYER_RAHUL_01) — USD</option>
+                   <option value="BUYER_ELENA_02">Elena Rostova (BUYER_ELENA_02) — EUR</option>
+                   <option value="BUYER_OLIVER_03">Oliver Grant (BUYER_OLIVER_03) — GBP</option>`
             }
           </select>
         </div>
@@ -328,7 +389,7 @@ function openCreateInvoiceModal(mount) {
               <option value="CAD">CAD — Canadian Dollar</option>
               <option value="SGD">SGD — Singapore Dollar</option>
               <option value="JPY">JPY — Japanese Yen</option>
-              <option value="INR">INR — Indian Rupee (Will Be Blocked by OPGSP)</option>
+              <option value="INR">INR — Indian Rupee (Will Be Blocked by OPGSP Rule)</option>
             </select>
           </div>
         </div>
@@ -347,22 +408,30 @@ function openCreateInvoiceModal(mount) {
     `,
     footerHtml: `
       <button type="button" class="btn btn-secondary" id="ci-cancel">Cancel</button>
-      <button type="button" class="btn btn-primary" id="ci-stage-btn">Validate & Stage Invoice</button>
+      <button type="button" class="btn btn-primary" id="ci-stage-btn">Validate &amp; Stage Invoice</button>
     `,
     onMount: () => {
       document.getElementById("ci-cancel")?.addEventListener("click", closeModal);
       document.getElementById("ci-stage-btn")?.addEventListener("click", async () => {
         const btn = document.getElementById("ci-stage-btn");
         const errBox = document.getElementById("ci-error-box");
-        const buyerToken = document.getElementById("ci-buyer").value;
-        const amount = Number(document.getElementById("ci-amount").value);
-        const currency = document.getElementById("ci-currency").value;
-        const item = document.getElementById("ci-item").value.trim();
-        const quantity = document.getElementById("ci-qty").value.trim();
+        const buyerEl = document.getElementById("ci-buyer");
+        const amountEl = document.getElementById("ci-amount");
+        const currencyEl = document.getElementById("ci-currency");
+        const itemEl = document.getElementById("ci-item");
+        const qtyEl = document.getElementById("ci-qty");
 
-        btn.disabled = true;
-        btn.textContent = "Validating...";
-        errBox.innerHTML = "";
+        const buyerToken = buyerEl?.value || "BUYER_RAHUL_01";
+        const amount = Number(amountEl?.value || 0);
+        const currency = currencyEl?.value || "USD";
+        const item = itemEl?.value?.trim() || "Cloud API Development";
+        const quantity = qtyEl?.value?.trim() || "1 Milestone";
+
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Validating...";
+        }
+        if (errBox) errBox.innerHTML = "";
 
         try {
           const staged = await api.stageInvoice({
@@ -376,9 +445,13 @@ function openCreateInvoiceModal(mount) {
             onExecuted: () => renderInvoicesPage(mount),
           });
         } catch (err) {
-          btn.disabled = false;
-          btn.textContent = "Validate & Stage Invoice";
-          errBox.innerHTML = `<div class="alert alert-error"><div class="alert-content"><span class="alert-title">${escapeHtml(err.code || "Policy Violation")}</span><span>${escapeHtml(err.message)}</span></div></div>`;
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Validate & Stage Invoice";
+          }
+          if (errBox) {
+            errBox.innerHTML = `<div class="alert alert-error" style="margin-block-start:0.75rem;"><div class="alert-content"><span class="alert-title">${escapeHtml(err.code || "Policy Violation")}</span><span>${escapeHtml(err.message)}</span></div></div>`;
+          }
         }
       });
     },
@@ -391,6 +464,7 @@ function openInvoiceDetailModal(inv, mount) {
   const inCooldown = lastRem && Date.now() - lastRem < REMINDER_COOLDOWN_MS;
   const isSent = inv.status === "SENT";
   const isStaged = inv.status === "STAGED";
+  const isPaid = inv.status === "PAID";
 
   openModal({
     title: `Invoice ${inv.invoiceId}`,
@@ -440,6 +514,12 @@ function openInvoiceDetailModal(inv, mount) {
       </div>
     `,
     footerHtml: `
+      <button type="button" class="btn btn-secondary" id="inv-det-copy">Copy Invoice ID</button>
+      ${
+        isPaid
+          ? `<button type="button" class="btn btn-secondary" id="inv-det-stmt">Generate Statement</button>`
+          : ""
+      }
       <button type="button" class="btn btn-secondary" id="inv-det-close">Close</button>
       ${
         isStaged
@@ -458,6 +538,18 @@ function openInvoiceDetailModal(inv, mount) {
     `,
     onMount: () => {
       document.getElementById("inv-det-close")?.addEventListener("click", closeModal);
+      document.getElementById("inv-det-copy")?.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(inv.invoiceId);
+          showToast({ title: "Copied", message: `Invoice ID ${inv.invoiceId} copied to clipboard.`, type: "success" });
+        } catch {
+          showToast({ title: "Invoice ID", message: inv.invoiceId, type: "info" });
+        }
+      });
+      document.getElementById("inv-det-stmt")?.addEventListener("click", () => {
+        closeModal();
+        navigateTo("statements");
+      });
       document.getElementById("inv-det-auth")?.addEventListener("click", () => {
         closeModal();
         openPasskeyAuthModal(inv._stagedRef, { onSuccess: () => renderInvoicesPage(mount) });
@@ -478,24 +570,30 @@ function openInvoiceDetailModal(inv, mount) {
       });
       document.getElementById("inv-det-settle")?.addEventListener("click", async () => {
         const btn = document.getElementById("inv-det-settle");
-        btn.disabled = true;
-        btn.textContent = "Settling...";
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Settling...";
+        }
         try {
           const res = await api.simulateInvoicePayment(inv.invoiceId);
+          const settledInvoice = res.invoice || { ...inv, status: "PAID" };
           const list = store.getState().invoices || [];
-          store.setState({
-            invoices: list.map((item) => (item.invoiceId === inv.invoiceId ? res.invoice : item)),
-          });
-          showToast({ title: "Invoice Paid", message: `${inv.invoiceId} transitioned to PAID.`, type: "success" });
+          const exists = list.some((item) => item.invoiceId === inv.invoiceId);
+          const updatedInvoices = exists
+            ? list.map((item) => (item.invoiceId === inv.invoiceId ? settledInvoice : item))
+            : [settledInvoice, ...list];
+          store.setState({ invoices: updatedInvoices });
+          showToast({ title: "Invoice Paid", message: `${inv.invoiceId} transitioned to PAID via OPGSP.`, type: "success" });
           closeModal();
           renderInvoicesPage(mount);
         } catch (err) {
           showToast({ title: "Settlement Error", message: err.message, type: "error" });
-          btn.disabled = false;
-          btn.textContent = "Simulate Settlement (PAID)";
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Simulate Settlement (PAID)";
+          }
         }
       });
     },
   });
 }
-

@@ -7,6 +7,7 @@ import { appendAuditEntry } from "../services/auditLedger.js";
 import { createPayloadBoundChallenge, verifyPasskeyAssertion } from "./auth.js";
 import { securePayPalTools, issueSecurityExecutionTicket } from "../services/secureToolkitWrapper.js";
 import { parseMultilingualIntent } from "../services/intentParser.js";
+import { DEFAULT_SANDBOX_TRANSACTIONS } from "./transactions.js";
 
 const router = Router();
 
@@ -523,7 +524,38 @@ router.get("/:id/status", (req, res) => {
  */
 router.post("/:id/simulate-payment", (req, res) => {
   const { id } = req.params;
-  const invoice = executedInvoices.get(id);
+  let invoice = executedInvoices.get(id);
+
+  if (!invoice) {
+    const sandboxTx = (DEFAULT_SANDBOX_TRANSACTIONS || []).find((t) => t.invoiceId === id || t.id === id);
+    if (sandboxTx) {
+      invoice = {
+        invoiceId: sandboxTx.invoiceId || id,
+        stageId: `STAGE_SANDBOX_${id}`,
+        status: "SENT",
+        buyerToken: sandboxTx.buyerToken || "BUYER_UNKNOWN",
+        buyerName: sandboxTx.buyerName || "Overseas Buyer",
+        buyerEmail: `${String(sandboxTx.buyerToken || "buyer").toLowerCase()}@sandbox.paypal.com`,
+        buyerCompany: "International Client",
+        item: sandboxTx.item || "Cross-Border Export Deliverable",
+        quantity: "1 Contract",
+        amount: Number(sandboxTx.grossAmount || sandboxTx.amount || 200),
+        currency: sandboxTx.currency || "USD",
+        rbiPurposeCode: "P0802",
+        rbiDescription: "Software Implementation and Cloud IT Consultancy",
+        lutStatus: "Export under LUT without payment of IGST (Rule 96A CGST Rules)",
+        assertionId: "SIMULATED_SANDBOX_ASSERTION",
+        createdAt: sandboxTx.date || new Date().toISOString(),
+        timeline: [
+          { status: "STAGED", label: "Voice Intent Staged and PII Vault Bound", timestamp: sandboxTx.date || new Date().toISOString() },
+          { status: "AUTHENTICATED", label: "Biometric FIDO2 Passkey Signed", timestamp: sandboxTx.date || new Date().toISOString() },
+          { status: "DRAFT", label: "PayPal Sandbox Draft Invoice Created", timestamp: sandboxTx.date || new Date().toISOString() },
+          { status: "SENT", label: "Dispatched to International Buyer via Email", timestamp: sandboxTx.date || new Date().toISOString() },
+        ],
+      };
+      executedInvoices.set(invoice.invoiceId, invoice);
+    }
+  }
 
   if (!invoice) {
     return res.status(404).json({ success: false, error: `Invoice '${id}' not found` });

@@ -9,7 +9,7 @@ import {
 
 const router = Router();
 
-const DEFAULT_SANDBOX_TRANSACTIONS = [
+export const DEFAULT_SANDBOX_TRANSACTIONS = [
   {
     id: "TX-2026-US-9912",
     invoiceId: "INV2-US-7782-9901",
