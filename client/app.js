@@ -12,6 +12,7 @@ let currentStagedInvoice = null;
 let currentActiveInvoiceId = null;
 let sseConnection = null;
 let pollingInterval = null;
+let isAgentFrozenState = false;
 
 // DOM Elements
 const micZone = document.getElementById("mic-zone");
@@ -31,6 +32,11 @@ const btnVerifyLedger = document.getElementById("btn-verify-ledger");
 const buyerGrid = document.getElementById("buyer-grid");
 const auditStreamBox = document.getElementById("audit-stream-box");
 
+// Kill Switch elements
+const btnKillSwitch = document.getElementById("btn-kill-switch");
+const freezeAlertBanner = document.getElementById("freeze-alert-banner");
+const btnUnfreezeBanner = document.getElementById("btn-unfreeze-banner");
+
 // Staged preview elements
 const previewBuyerName = document.getElementById("preview-buyer-name");
 const previewBuyerDetails = document.getElementById("preview-buyer-details");
@@ -41,6 +47,20 @@ const previewQuantity = document.getElementById("preview-quantity");
 const previewRbi = document.getElementById("preview-rbi");
 const previewLut = document.getElementById("preview-lut");
 const previewHash = document.getElementById("preview-hash");
+
+// Risk assessment meter elements
+const previewRiskBadge = document.getElementById("preview-risk-badge");
+const previewRiskBar = document.getElementById("preview-risk-bar");
+const previewLookalikePill = document.getElementById("preview-lookalike-pill");
+const previewDeviationPill = document.getElementById("preview-deviation-pill");
+const previewRiskScore = document.getElementById("preview-risk-score");
+
+// Mobile QR handoff elements
+const btnQrHandoff = document.getElementById("btn-qr-handoff");
+const qrHandoffModal = document.getElementById("qr-handoff-modal");
+const btnCloseQr = document.getElementById("btn-close-qr");
+const qrGraphicBox = document.getElementById("qr-graphic-box");
+const qrUrlDisplay = document.getElementById("qr-url-display");
 
 // Timeline steps
 const stepVoice = document.getElementById("step-voice");
@@ -187,6 +207,12 @@ async function handleVoiceCommand(transcriptText) {
     const data = await res.json();
 
     if (!res.ok || !data.success) {
+      if (res.status === 423 || data.error === "AGENT_FROZEN_BY_KILL_SWITCH") {
+        updateKillSwitchUI(true, data.details || "Agent frozen");
+        alert(`🚨 KILL SWITCH ACTIVE: ${data.details || "The agent is currently frozen. Resume it before staging invoices."}`);
+        micStatusHint.textContent = "Agent frozen. Click 'Resume Agent' in top bar to resume.";
+        return;
+      }
       alert(`Staging Notice: ${data.details || data.error || data.message || "Failed to stage invoice"}`);
       micStatusHint.textContent = "Ready. Tap mic or type to retry.";
       return;
@@ -223,6 +249,62 @@ function renderStagedPreview(data) {
   previewRbi.textContent = `RBI Export Code: ${card.rbiPurposeCode || "P0802"} (${card.rbiDescription || "Software Consultancy"})`;
   previewLut.textContent = card.lutStatus || "GST LUT: Rule 96A Zero-Rated (No IGST)";
   previewHash.textContent = `SHA-256: ${(card.payloadHash || "").slice(0, 16)}...`;
+
+  // 4-Tier Dynamic Risk Assessment Meter
+  const score = card.riskScore !== undefined ? card.riskScore : 25;
+  const tier = card.riskTier || "LEVEL_2";
+  const label = card.levelLabel || "Level 2 (Standard Risk)";
+
+  if (previewRiskScore) previewRiskScore.textContent = `Score: ${score}/100`;
+  if (previewRiskBar) {
+    previewRiskBar.style.width = `${Math.min(100, Math.max(5, score))}%`;
+    if (score <= 30) {
+      previewRiskBar.style.background = "#10b981"; // Green
+    } else if (score <= 75) {
+      previewRiskBar.style.background = "#f59e0b"; // Amber/Orange
+    } else {
+      previewRiskBar.style.background = "#ef4444"; // Red
+    }
+  }
+
+  if (previewRiskBadge) {
+    previewRiskBadge.textContent = label;
+    if (tier === "LEVEL_1") {
+      previewRiskBadge.style.background = "#ecfdf5";
+      previewRiskBadge.style.color = "#047857";
+    } else if (tier === "LEVEL_2") {
+      previewRiskBadge.style.background = "#dcfce7";
+      previewRiskBadge.style.color = "#15803d";
+    } else if (tier === "LEVEL_3") {
+      previewRiskBadge.style.background = "#fef3c7";
+      previewRiskBadge.style.color = "#b45309";
+    } else {
+      previewRiskBadge.style.background = "#fee2e2";
+      previewRiskBadge.style.color = "#b91c1c";
+    }
+  }
+
+  // Lookalike indicator
+  if (previewLookalikePill) {
+    if (card.lookalikeStatus === "SPOOFING_DETECTED") {
+      previewLookalikePill.textContent = "⚠️ Lookalike Name: Spoofing Flagged";
+      previewLookalikePill.className = "risk-sub-pill pill-danger";
+    } else {
+      previewLookalikePill.textContent = "✅ Lookalike Name: Authentic Allowlist";
+      previewLookalikePill.className = "risk-sub-pill pill-ok";
+    }
+  }
+
+  // Amount deviation indicator
+  if (previewDeviationPill) {
+    if (card.amountDeviationWarning) {
+      previewDeviationPill.textContent = `⚠️ Amount Deviation: ${card.deviationRatio || ">2"}x Baseline`;
+      previewDeviationPill.className = "risk-sub-pill pill-warn";
+    } else {
+      previewDeviationPill.textContent = "✅ Amount Deviation: Normal Baseline";
+      previewDeviationPill.className = "risk-sub-pill pill-ok";
+    }
+  }
 
   stagedCard.style.display = "block";
   stagedCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -268,6 +350,10 @@ async function executeInvoiceWithPasskey() {
     const result = await res.json();
 
     if (!res.ok || !result.success) {
+      if (res.status === 423 || result.error === "AGENT_FROZEN_BY_KILL_SWITCH") {
+        updateKillSwitchUI(true, result.details || "Agent frozen");
+        throw new Error(`🚨 AGENT FROZEN: ${result.details || "Kill switch engaged. Execution blocked."}`);
+      }
       throw new Error(result.details || result.error || "Failed to execute invoice");
     }
 
@@ -514,6 +600,307 @@ async function verifyAuditLedger() {
   }
 }
 
+/**
+ * Check Kill Switch State from Backend
+ */
+async function checkKillSwitchState() {
+  try {
+    const res = await fetch("/api/security/kill-switch");
+    const data = await res.json();
+    if (data.success) {
+      isAgentFrozenState = !!data.agentFrozen;
+      updateKillSwitchUI(isAgentFrozenState, data.reason);
+    }
+  } catch (err) {
+    console.warn("[Kill Switch Check Failed]:", err);
+  }
+}
+
+/**
+ * Update UI according to freeze status
+ */
+function updateKillSwitchUI(frozen, reason) {
+  isAgentFrozenState = frozen;
+  if (btnKillSwitch) {
+    if (frozen) {
+      btnKillSwitch.classList.add("frozen");
+      btnKillSwitch.textContent = "❄️ Resume Agent";
+      btnKillSwitch.title = "Click to resume agent operations";
+    } else {
+      btnKillSwitch.classList.remove("frozen");
+      btnKillSwitch.textContent = "🛑 Freeze Agent";
+      btnKillSwitch.title = "Emergency Kill Switch: Freeze or Resume Agent";
+    }
+  }
+  if (freezeAlertBanner) {
+    freezeAlertBanner.style.display = frozen ? "flex" : "none";
+    if (frozen && reason) {
+      const bannerSpan = freezeAlertBanner.querySelector("span");
+      if (bannerSpan) {
+        bannerSpan.innerHTML = `🚨 <strong>EMERGENCY KILL SWITCH ENGAGED:</strong> The PayVoice agent is FROZEN (${reason}). All invoice creation, staging, and dispatching are suspended.`;
+      }
+    }
+  }
+}
+
+/**
+ * Toggle Kill Switch
+ */
+async function toggleKillSwitch(freeze, reason = "Manual UI toggle") {
+  try {
+    const res = await fetch("/api/security/kill-switch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        freeze,
+        reason: reason || (freeze ? "Emergency freeze requested by merchant" : "Merchant resumed agent"),
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      updateKillSwitchUI(data.agentFrozen, data.reason);
+      alert(data.agentFrozen ? "🛑 Agent has been FROZEN! All invoice staging and execution are halted." : "🟢 Agent operations RESUMED.");
+    } else {
+      alert("Failed to update Kill Switch: " + (data.error || "Unknown error"));
+    }
+  } catch (err) {
+    alert("Kill Switch request error: " + err.message);
+  }
+}
+
+/**
+ * Standalone QR Code SVG Matrix Generator for Mobile Biometric Handoff
+ * Encodes URL to QR Code Version 4 (33x33) with Reed-Solomon Error Correction Level L
+ * @param {string} text
+ * @returns {string} SVG XML markup
+ */
+function generateQrSvg(text) {
+  try {
+    const GF_EXP = new Uint8Array(512);
+    const GF_LOG = new Uint8Array(256);
+    let x = 1;
+    for (let i = 0; i < 255; i++) {
+      GF_EXP[i] = x;
+      GF_LOG[x] = i;
+      x <<= 1;
+      if (x & 256) x ^= 0x11d;
+    }
+    for (let i = 255; i < 512; i++) {
+      GF_EXP[i] = GF_EXP[i - 255];
+    }
+
+    function gfMul(a, b) {
+      if (a === 0 || b === 0) return 0;
+      return GF_EXP[GF_LOG[a] + GF_LOG[b]];
+    }
+
+    function rsGenPoly(n) {
+      let poly = [1];
+      for (let i = 0; i < n; i++) {
+        const next = new Array(poly.length + 1).fill(0);
+        for (let j = 0; j < poly.length; j++) {
+          next[j] ^= gfMul(poly[j], GF_EXP[i]);
+          next[j + 1] ^= poly[j];
+        }
+        poly = next;
+      }
+      return poly;
+    }
+
+    function rsEncode(data, ecCount) {
+      const gen = rsGenPoly(ecCount);
+      const res = new Uint8Array(data.length + ecCount);
+      res.set(data);
+      for (let i = 0; i < data.length; i++) {
+        const coef = res[i];
+        if (coef !== 0) {
+          for (let j = 0; j < gen.length; j++) {
+            res[i + j] ^= gfMul(gen[j], coef);
+          }
+        }
+      }
+      return res.slice(data.length);
+    }
+
+    const dataBytes = new TextEncoder().encode(text.slice(0, 76));
+    const maxDataCodewords = 80;
+
+    let bits = "0100" + dataBytes.length.toString(2).padStart(8, "0");
+    for (const b of dataBytes) {
+      bits += b.toString(2).padStart(8, "0");
+    }
+    bits += "0000".slice(0, Math.min(4, maxDataCodewords * 8 - bits.length));
+    while (bits.length % 8 !== 0) bits += "0";
+
+    const codewords = [];
+    for (let i = 0; i < bits.length; i += 8) {
+      codewords.push(parseInt(bits.slice(i, i + 8), 2));
+    }
+    let padToggle = false;
+    while (codewords.length < maxDataCodewords) {
+      codewords.push(padToggle ? 0x11 : 0xec);
+      padToggle = !padToggle;
+    }
+
+    const ecCodewords = rsEncode(new Uint8Array(codewords), 20);
+    const allCodewords = [...codewords, ...ecCodewords];
+
+    const size = 33;
+    const matrix = Array.from({ length: size }, () => Array(size).fill(null));
+    const reserved = Array.from({ length: size }, () => Array(size).fill(false));
+
+    function placeFinder(row, col) {
+      for (let r = -1; r <= 7; r++) {
+        for (let c = -1; c <= 7; c++) {
+          const nr = row + r;
+          const nc = col + c;
+          if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+            reserved[nr][nc] = true;
+            if (r >= 0 && r <= 6 && c >= 0 && c <= 6) {
+              const isBorder = (r === 0 || r === 6 || c === 0 || c === 6);
+              const isCenter = (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+              matrix[nr][nc] = (isBorder || isCenter) ? 1 : 0;
+            } else {
+              matrix[nr][nc] = 0;
+            }
+          }
+        }
+      }
+    }
+
+    placeFinder(0, 0);
+    placeFinder(0, size - 7);
+    placeFinder(size - 7, 0);
+
+    for (let r = -2; r <= 2; r++) {
+      for (let c = -2; c <= 2; c++) {
+        reserved[26 + r][26 + c] = true;
+        matrix[26 + r][26 + c] = (Math.abs(r) === 2 || Math.abs(c) === 2 || (r === 0 && c === 0)) ? 1 : 0;
+      }
+    }
+
+    for (let i = 8; i < size - 8; i++) {
+      if (!reserved[6][i]) {
+        matrix[6][i] = (i % 2 === 0) ? 1 : 0;
+        reserved[6][i] = true;
+      }
+      if (!reserved[i][6]) {
+        matrix[i][6] = (i % 2 === 0) ? 1 : 0;
+        reserved[i][6] = true;
+      }
+    }
+
+    matrix[size - 8][8] = 1;
+    reserved[size - 8][8] = true;
+
+    for (let i = 0; i <= 8; i++) {
+      reserved[8][i] = true;
+      reserved[i][8] = true;
+      reserved[8][size - 1 - i] = true;
+      reserved[size - 1 - i][8] = true;
+    }
+
+    let bitIndex = 0;
+    const bitString = allCodewords.map(c => c.toString(2).padStart(8, "0")).join("");
+
+    let right = size - 1;
+    let upwards = true;
+    while (right > 0) {
+      if (right === 6) right--;
+      const cols = [right, right - 1];
+      const rowList = [];
+      if (upwards) {
+        for (let r = size - 1; r >= 0; r--) rowList.push(r);
+      } else {
+        for (let r = 0; r < size; r++) rowList.push(r);
+      }
+
+      for (const r of rowList) {
+        for (const c of cols) {
+          if (!reserved[r][c]) {
+            let bit = 0;
+            if (bitIndex < bitString.length) {
+              bit = bitString[bitIndex] === "1" ? 1 : 0;
+              bitIndex++;
+            }
+            const mask = ((r + c) % 2 === 0) ? 1 : 0;
+            matrix[r][c] = bit ^ mask;
+          }
+        }
+      }
+      right -= 2;
+      upwards = !upwards;
+    }
+
+    const formatBits = "111011111000100";
+    const formatCoordsTopLeft = [
+      [8, 0], [8, 1], [8, 2], [8, 3], [8, 4], [8, 5],
+      [8, 7], [8, 8], [7, 8], [5, 8], [4, 8], [3, 8], [2, 8], [1, 8], [0, 8]
+    ];
+    for (let i = 0; i < 15; i++) {
+      const val = formatBits[14 - i] === "1" ? 1 : 0;
+      const [r, c] = formatCoordsTopLeft[i];
+      matrix[r][c] = val;
+    }
+    for (let i = 0; i < 7; i++) {
+      matrix[size - 1 - i][8] = formatBits[14 - i] === "1" ? 1 : 0;
+    }
+    for (let i = 0; i < 8; i++) {
+      matrix[8][size - 8 + i] = formatBits[7 - i] === "1" ? 1 : 0;
+    }
+
+    const padding = 2;
+    const total = size + padding * 2;
+    let paths = "";
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (matrix[r][c] === 1) {
+          paths += `M${c + padding},${r + padding}h1v1h-1z `;
+        }
+      }
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" width="160" height="160" shape-rendering="crispEdges">
+      <rect width="${total}" height="${total}" fill="#ffffff"/>
+      <path d="${paths.trim()}" fill="#0f172a"/>
+    </svg>`;
+  } catch (err) {
+    console.error("[QR Gen Error]:", err);
+    return `<div style="padding:20px; font-size:12px; color:#ef4444;">Unable to render QR code</div>`;
+  }
+}
+
+/**
+ * Open Mobile QR Handoff Modal
+ */
+function openQrHandoffModal() {
+  if (!currentStagedInvoice) {
+    alert("No invoice is currently staged.");
+    return;
+  }
+  const stageId = currentStagedInvoice.stageId || "STAGE_DEMO";
+  const challengeId = currentStagedInvoice.webauthn?.challengeId || "CHALLENGE_DEMO";
+  const handoffUrl = `${window.location.origin}/auth/mobile?stageId=${encodeURIComponent(stageId)}&challengeId=${encodeURIComponent(challengeId)}`;
+
+  if (qrUrlDisplay) {
+    qrUrlDisplay.innerHTML = `<code>${handoffUrl}</code>`;
+  }
+  if (qrGraphicBox) {
+    qrGraphicBox.innerHTML = generateQrSvg(handoffUrl);
+  }
+  if (qrHandoffModal) {
+    qrHandoffModal.style.display = "flex";
+  }
+}
+
+/**
+ * Close Mobile QR Handoff Modal
+ */
+function closeQrHandoffModal() {
+  if (qrHandoffModal) {
+    qrHandoffModal.style.display = "none";
+  }
+}
+
 // Event Listeners
 micButton.addEventListener("click", () => {
   if (recognition) {
@@ -591,6 +978,27 @@ document.querySelectorAll(".demo-chip").forEach((chip) => {
   });
 });
 
+// Kill Switch & Mobile QR Listeners
+if (btnKillSwitch) {
+  btnKillSwitch.addEventListener("click", () => {
+    toggleKillSwitch(!isAgentFrozenState);
+  });
+}
+
+if (btnUnfreezeBanner) {
+  btnUnfreezeBanner.addEventListener("click", () => {
+    toggleKillSwitch(false, "Merchant clicked Resume in alert banner");
+  });
+}
+
+if (btnQrHandoff) {
+  btnQrHandoff.addEventListener("click", openQrHandoffModal);
+}
+
+if (btnCloseQr) {
+  btnCloseQr.addEventListener("click", closeQrHandoffModal);
+}
+
 // App Initialization
 window.addEventListener("DOMContentLoaded", () => {
   initSpeechRecognition();
@@ -598,4 +1006,5 @@ window.addEventListener("DOMContentLoaded", () => {
   loadCfoMetrics();
   loadBuyers();
   loadAuditLedger();
+  checkKillSwitchState();
 });

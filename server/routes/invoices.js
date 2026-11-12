@@ -1,6 +1,6 @@
 import { Router } from "express";
 import crypto from "crypto";
-import { inspectUntrustedInput, validateIntentSchema } from "../services/guardrail.js";
+import { inspectUntrustedInput, validateIntentSchema, isAgentFrozen, getAgentFreezeState } from "../services/guardrail.js";
 import { evaluateTransactionPolicy, classifyRbiPurposeCode } from "../services/moneyGuide.js";
 import { resolveBuyerToken, findBuyerByNameOrToken } from "../services/vault.js";
 import { appendAuditEntry } from "../services/auditLedger.js";
@@ -85,6 +85,18 @@ router.post("/parse-intent", async (req, res) => {
  */
 router.post("/stage", async (req, res) => {
   try {
+    // 0. Emergency Kill Switch Check
+    if (isAgentFrozen()) {
+      const state = getAgentFreezeState();
+      stagedInvoices.clear();
+      return res.status(423).json({
+        success: false,
+        error: "AGENT_FROZEN_BY_KILL_SWITCH",
+        message: `Agent is currently FROZEN by emergency kill switch. Reason: ${state.reason || "Manual security intervention"}. All staging and execution actions are suspended.`,
+        frozenAt: state.frozenAt,
+      });
+    }
+
     let { transcript = "", intent = {} } = req.body || {};
 
     // 1. Prompt-Injection & Untrusted Input Firewall Check
@@ -216,6 +228,13 @@ router.post("/stage", async (req, res) => {
       success: true,
       stageId,
       stagedPayload,
+      riskClassification: policyResult.riskClassification || {
+        riskTier: "LEVEL_2",
+        riskScore: 25,
+        levelLabel: "Level 2 (Standard Risk)",
+        requiresPasskey: true,
+        requiresCameraLiveness: false,
+      },
       previewCard: {
         buyerToken: buyer.buyerToken,
         buyerDisplayName: buyer.name,
@@ -231,6 +250,13 @@ router.post("/stage", async (req, res) => {
         lutStatus: stagedPayload.lutStatus,
         estInrFormatted: `~₹${estInr.toLocaleString("en-IN")} INR`,
         payloadHash,
+        riskTier: policyResult.riskClassification?.riskTier || "LEVEL_2",
+        riskScore: policyResult.riskClassification?.riskScore || 25,
+        levelLabel: policyResult.riskClassification?.levelLabel || "Level 2 (Standard Risk)",
+        amountDeviationWarning: Boolean(policyResult.amountDeviationWarning),
+        deviationRatio: policyResult.deviationRatio || 1.0,
+        requiresCameraLiveness: Boolean(policyResult.riskClassification?.requiresCameraLiveness),
+        lookalikeStatus: "VERIFIED_ALLOWLIST",
       },
       webauthn: {
         challengeId,
@@ -259,6 +285,18 @@ router.post("/stage", async (req, res) => {
  */
 router.post("/execute", async (req, res) => {
   try {
+    // 0. Emergency Kill Switch Check
+    if (isAgentFrozen()) {
+      const state = getAgentFreezeState();
+      stagedInvoices.clear();
+      return res.status(423).json({
+        success: false,
+        error: "AGENT_FROZEN_BY_KILL_SWITCH",
+        message: `Agent is currently FROZEN by emergency kill switch. Reason: ${state.reason || "Manual security intervention"}. All staging and execution actions are suspended.`,
+        frozenAt: state.frozenAt,
+      });
+    }
+
     const { stageId, challengeId, assertion, expectedPayloadHash, autoSettleSeconds } = req.body || {};
 
     if (!stageId || !challengeId) {

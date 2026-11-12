@@ -1,6 +1,6 @@
 import { Router } from "express";
 import crypto from "crypto";
-import { inspectUntrustedInput, validateIntentSchema } from "../services/guardrail.js";
+import { inspectUntrustedInput, validateIntentSchema, setAgentFreezeState, getAgentFreezeState, isAgentFrozen } from "../services/guardrail.js";
 import { evaluateTransactionPolicy, computeTransactionTotals } from "../services/moneyGuide.js";
 import { redactPIIBeforeLLM, resolveBuyerToken, registerBuyer, listMaskedBuyers } from "../services/vault.js";
 import { appendAuditEntry, tamperAuditEntry, restoreAuditLedger, verifyLedgerIntegrity, exportVerifiableAuditBundle } from "../services/auditLedger.js";
@@ -265,6 +265,49 @@ router.get("/redteam", async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: "Failed to run red-team suite: " + error.message });
   }
+});
+
+/**
+ * POST /api/security/kill-switch
+ * Toggles emergency freeze/unfreeze state and records to cryptographic audit ledger
+ */
+router.post("/kill-switch", (req, res) => {
+  try {
+    const { frozen, reason } = req.body || {};
+    const effectiveFrozen = typeof frozen === "boolean" ? frozen : !getAgentFreezeState().frozen;
+    const effectiveReason = reason || (effectiveFrozen ? "Emergency Kill Switch Activated by Security Operator" : "Agent Resumed by Security Operator");
+
+    const state = setAgentFreezeState(effectiveFrozen, effectiveReason);
+
+    appendAuditEntry({
+      transcript: `Kill Switch ${state.frozen ? "ACTIVATED (AGENT FROZEN)" : "DEACTIVATED (AGENT RESUMED)"}`,
+      stagedPayload: { action: "kill_switch", frozen: state.frozen, reason: state.reason },
+      passkeyAssertionId: "SECURITY_ADMIN_OVERRIDE",
+      status: state.frozen ? "AGENT_FROZEN" : "AGENT_UNFROZEN",
+      metadata: { reason: state.reason, frozenAt: state.frozenAt },
+    });
+
+    res.json({
+      success: true,
+      ...state,
+      message: state.frozen
+        ? "Agent has been FROZEN. All invoice staging and execution requests are blocked."
+        : "Agent has been UNFROZEN. Normal operations resumed.",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Failed to toggle kill switch: " + error.message });
+  }
+});
+
+/**
+ * GET /api/security/kill-switch
+ * Returns current freeze state of the agent
+ */
+router.get("/kill-switch", (req, res) => {
+  res.json({
+    success: true,
+    ...getAgentFreezeState(),
+  });
 });
 
 export default router;

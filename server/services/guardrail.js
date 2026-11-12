@@ -6,6 +6,48 @@ import { appendAuditEntry } from "./auditLedger.js";
  * Treats all voice transcripts, item descriptions, and external invoice memos as untrusted inputs.
  */
 
+// Emergency Kill Switch State
+let agentFrozen = false;
+let freezeReason = "";
+let frozenAt = null;
+
+/**
+ * Emergency Kill Switch: Set agent freeze state
+ * @param {boolean} frozen
+ * @param {string} [reason=""]
+ * @returns {{ frozen: boolean, reason: string, frozenAt: string | null }}
+ */
+export function setAgentFreezeState(frozen, reason = "") {
+  agentFrozen = Boolean(frozen);
+  freezeReason = agentFrozen ? (reason || "Emergency kill switch activated by operator") : "";
+  frozenAt = agentFrozen ? new Date().toISOString() : null;
+  return {
+    frozen: agentFrozen,
+    reason: freezeReason,
+    frozenAt,
+  };
+}
+
+/**
+ * Emergency Kill Switch: Get agent freeze state
+ * @returns {{ frozen: boolean, reason: string, frozenAt: string | null }}
+ */
+export function getAgentFreezeState() {
+  return {
+    frozen: agentFrozen,
+    reason: freezeReason,
+    frozenAt,
+  };
+}
+
+/**
+ * Helper to check if agent is currently frozen
+ * @returns {boolean}
+ */
+export function isAgentFrozen() {
+  return agentFrozen;
+}
+
 const ADVERSARIAL_PATTERNS = [
   { regex: /ignore\s+(all\s+)?(previous\s+)?(rules|instructions|prompts|commands)/i, label: "prompt_injection_override" },
   { regex: /you\s+are\s+now\s+(a\s+)?(system\s+admin|root|super\s*user|developer\s+mode)/i, label: "role_manipulation" },

@@ -26,8 +26,15 @@
         <span class="badge-tag">GST LUT: Rule 96A Active</span>
         <span class="badge-tag">OPGSP Pathway</span>
         <span class="badge-tag pulse-green" id="sandbox-badge">🟢 Live Sandbox Connected</span>
+        <button class="btn-kill-switch" id="btn-kill-switch" title="Emergency Kill Switch: Freeze or Resume Agent">🛑 Freeze Agent</button>
       </div>
     </header>
+
+    <!-- Emergency Kill Switch Alert Banner -->
+    <div id="freeze-alert-banner" class="freeze-banner" style="display: none;">
+      <span>🚨 <strong>EMERGENCY KILL SWITCH ENGAGED:</strong> The PayVoice agent is currently FROZEN. All invoice creation, staging, and dispatching are suspended.</span>
+      <button id="btn-unfreeze-banner" class="btn-unfreeze-small">Resume Agent</button>
+    </div>
 
     <!-- Top CFO Metrics Intelligence Bar -->
     <div class="cfo-metrics-grid">
@@ -178,10 +185,29 @@
               <span class="compliance-pill pill-hash" id="preview-hash" title="Payload SHA-256 Digest">SHA-256: 8a4f...e91c</span>
             </div>
 
+            <!-- 4-Tier Dynamic Risk Assessment Meter -->
+            <div class="risk-meter-container">
+              <div class="risk-meter-header">
+                <span class="risk-meter-title">🛡️ 4-Tier Dynamic Risk Assessment Meter</span>
+                <span class="badge-tag" id="preview-risk-badge" style="background:#dcfce7; color:#15803d; border:none;">Level 2 (Standard Risk)</span>
+              </div>
+              <div class="risk-bar-track">
+                <div class="risk-bar-fill" id="preview-risk-bar" style="width: 25%; background: #10b981;"></div>
+              </div>
+              <div class="risk-meter-sub">
+                <span id="preview-lookalike-pill" class="risk-sub-pill pill-ok">✅ Lookalike Name: Authentic</span>
+                <span id="preview-deviation-pill" class="risk-sub-pill pill-ok">✅ Amount Deviation: Normal</span>
+                <span id="preview-risk-score" class="risk-sub-pill">Score: 25/100</span>
+              </div>
+            </div>
+
             <!-- Passkey Execution Bar -->
             <div class="passkey-action-bar">
               <button class="btn-passkey" id="btn-execute-passkey">
                 <span>🔐 Authorize & Send Invoice with Biometric Passkey</span>
+              </button>
+              <button class="btn-qr-handoff" id="btn-qr-handoff" type="button">
+                <span>📱 Mobile Phone Approval Handoff (QR)</span>
               </button>
               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                 <label class="toggle-group">
@@ -191,6 +217,26 @@
                 <button id="btn-speech-repeat" style="background:none; border:none; color:var(--primary-color); font-size:12px; cursor:pointer; text-decoration:underline;">
                   🔊 Replay Voice Read-Back
                 </button>
+              </div>
+            </div>
+
+            <!-- PC-to-Mobile QR Handoff Modal -->
+            <div id="qr-handoff-modal" class="qr-modal" style="display: none;">
+              <div class="qr-card">
+                <div class="qr-card-header">
+                  <h4>📱 Mobile Phone Biometric Handoff</h4>
+                  <button type="button" id="btn-close-qr" class="qr-close-btn">&times;</button>
+                </div>
+                <p style="font-size:12px; color:var(--text-muted);">
+                  Scan this QR code with your mobile camera to approve via phone Touch ID / Face ID WebAuthn:
+                </p>
+                <div class="qr-graphic-box" id="qr-graphic-box">
+                  <!-- SVG QR rendered dynamically -->
+                </div>
+                <div class="qr-url-display" id="qr-url-display">
+                  <code>https://payvoice.io/auth/mobile?challenge=...</code>
+                </div>
+                <span class="badge-tag pulse-green" style="font-size:11px;">Listening for Mobile Passkey Assertion...</span>
               </div>
             </div>
           </div>

@@ -61,6 +61,7 @@ const DEFAULT_BUYERS = {
     defaultPurposeDescription: "Software Implementation & Cloud IT Consultancy",
     aliases: ["rahul", "rahul mehta", "राहुल", "राहुलला", "राहुलसाठी", "राहुल को"],
     createdAt: "2026-11-10T00:00:00.000Z",
+    cooldownUntil: "2026-11-10T00:30:00.000Z",
   },
   BUYER_ELENA_02: {
     buyerToken: "BUYER_ELENA_02",
@@ -78,6 +79,7 @@ const DEFAULT_BUYERS = {
     defaultPurposeDescription: "Engineering, UI/UX & Product Design Services",
     aliases: ["elena", "elena rostova", "एलेना", "एलेनाला", "एलेनासाठी", "एलेना को"],
     createdAt: "2026-11-10T00:00:00.000Z",
+    cooldownUntil: "2026-11-10T00:30:00.000Z",
   },
   BUYER_OLIVER_03: {
     buyerToken: "BUYER_OLIVER_03",
@@ -95,6 +97,7 @@ const DEFAULT_BUYERS = {
     defaultPurposeDescription: "Software Implementation & Cloud IT Consultancy",
     aliases: ["oliver", "oliver grant", "ऑलिव्हर", "ऑलिव्हरला", "ऑलिव्हरसाठी", "ऑलिवर को"],
     createdAt: "2026-11-10T00:00:00.000Z",
+    cooldownUntil: "2026-11-10T00:30:00.000Z",
   },
   BUYER_AKIRA_04: {
     buyerToken: "BUYER_AKIRA_04",
@@ -112,6 +115,7 @@ const DEFAULT_BUYERS = {
     defaultPurposeDescription: "Software Implementation & Cloud IT Consultancy",
     aliases: ["akira", "akira sato", "अकिरा", "अकिराला", "अकिरासाठी", "अकीरा को"],
     createdAt: "2026-11-10T00:00:00.000Z",
+    cooldownUntil: "2026-11-10T00:30:00.000Z",
   },
 };
 
@@ -154,14 +158,22 @@ function loadVault() {
       const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
       const loaded = JSON.parse(decrypted.toString("utf8"));
 
-      // Ensure each loaded buyer has a blind index computed
-      for (const b of Object.values(loaded)) {
+      // Ensure each loaded buyer has defaults and blind index computed
+      const merged = {};
+      for (const [k, def] of Object.entries(DEFAULT_BUYERS)) {
+        merged[k] = { ...def, ...(loaded[k] || {}) };
+      }
+      for (const [k, v] of Object.entries(loaded)) {
+        if (!merged[k]) merged[k] = v;
+      }
+
+      for (const b of Object.values(merged)) {
         if (!b.blindIndex && b.email) {
           b.blindIndex = computeBlindIndex(b.email);
         }
       }
 
-      return { ...DEFAULT_BUYERS, ...loaded };
+      return merged;
     }
   } catch (err) {
     console.warn("[Vault] Vault decrypt/read note (initializing seed data):", err.message);
@@ -348,7 +360,8 @@ export function listMaskedBuyers() {
  * Uses HMAC-SHA256 blind index to prevent duplicate tokens for the same buyer email.
  */
 export function registerBuyer(buyerData) {
-  if (!buyerData || !buyerData.name || !buyerData.email) {
+  const buyerName = (buyerData?.name || buyerData?.displayName || "").trim();
+  if (!buyerData || !buyerName || !buyerData.email) {
     throw new Error("Invalid buyer registration data: name and email are required");
   }
 
@@ -360,7 +373,7 @@ export function registerBuyer(buyerData) {
     if (existing.blindIndex === blindIndex || existing.email.toLowerCase() === cleanEmail) {
       buyers[token] = {
         ...existing,
-        name: buyerData.name.trim(),
+        name: buyerName,
         blindIndex,
         country: buyerData.country || existing.country,
         currency: buyerData.currency || existing.currency,
@@ -371,24 +384,62 @@ export function registerBuyer(buyerData) {
     }
   }
 
-  const tokenPrefix = buyerData.name.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 5) || "BUYER";
+  const tokenPrefix = buyerName.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 5) || "BUYER";
   const existingTokens = Object.keys(buyers);
   const sequenceNum = String(existingTokens.length + 1).padStart(2, "0");
   const buyerToken = buyerData.buyerToken || `BUYER_${tokenPrefix}_${sequenceNum}`;
 
+  const now = Date.now();
+  const cooldownDurationMs = 30 * 60 * 1000; // 30-minute cool-down period
+  const cooldownUntil = buyerData.bypassCooldown
+    ? new Date(now - 1000).toISOString()
+    : new Date(now + cooldownDurationMs).toISOString();
+
   buyers[buyerToken] = {
     buyerToken,
-    name: buyerData.name.trim(),
+    name: buyerName,
     email: cleanEmail,
     blindIndex,
     country: buyerData.country || "US",
     currency: buyerData.currency || "USD",
     maxLimit: Number(buyerData.maxLimit) || 2500.0,
+    defaultAmount: Number(buyerData.defaultAmount) || 200.0,
+    defaultItem: buyerData.defaultItem || "Cloud API Development",
     createdAt: new Date().toISOString(),
+    cooldownUntil,
   };
 
   saveVault();
   return buyers[buyerToken];
+}
+
+/**
+ * Check if a newly registered payee is currently in the mandatory 30-minute cool-down period
+ * @param {string | object} buyerOrToken
+ * @param {object} [options={}]
+ * @returns {{ inCooldown: boolean, remainingMs: number, cooldownUntil: string | null }}
+ */
+export function isBuyerInCooldown(buyerOrToken, options = {}) {
+  if (options.bypassCooldown) {
+    return { inCooldown: false, remainingMs: 0, cooldownUntil: null };
+  }
+
+  const buyer = typeof buyerOrToken === "string" ? resolveBuyerToken(buyerOrToken) : buyerOrToken;
+  if (!buyer || !buyer.cooldownUntil) {
+    return { inCooldown: false, remainingMs: 0, cooldownUntil: null };
+  }
+
+  const now = Date.now();
+  const cdTime = new Date(buyer.cooldownUntil).getTime();
+  if (isNaN(cdTime) || cdTime <= now) {
+    return { inCooldown: false, remainingMs: 0, cooldownUntil: buyer.cooldownUntil };
+  }
+
+  return {
+    inCooldown: true,
+    remainingMs: cdTime - now,
+    cooldownUntil: buyer.cooldownUntil,
+  };
 }
 
 /**

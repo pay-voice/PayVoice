@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { resolveBuyerToken } from "./vault.js";
+import { resolveBuyerToken, listMaskedBuyers, isBuyerInCooldown } from "./vault.js";
 
 // 15-minute rolling idempotency cache for duplicate invoice prevention
 const recentInvoices = new Map(); // key -> timestamp ms
@@ -161,32 +161,354 @@ export function normalizeToUsd(amount, currency) {
   };
 }
 
+function computeRawLevenshtein(a = "", b = "") {
+  const s1 = String(a || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
+  const s2 = String(b || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
+  if (s1 === s2) return 0;
+  if (!s1.length) return s2.length;
+  if (!s2.length) return s1.length;
+  const d = [];
+  for (let i = 0; i <= s1.length; i++) d[i] = [i];
+  for (let j = 0; j <= s2.length; j++) d[0][j] = j;
+  for (let i = 1; i <= s1.length; i++) {
+    for (let j = 1; j <= s2.length; j++) {
+      const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+    }
+  }
+  return d[s1.length][s2.length];
+}
+
+/**
+ * Normalized homoglyph Levenshtein distance
+ * Neutralizes deceptive character swaps (e.g., 0->o, 1->l, 3->e, 5->s, vv->w)
+ * @param {string} str1
+ * @param {string} str2
+ * @returns {number}
+ */
+export function computeHomoglyphLevenshtein(str1 = "", str2 = "") {
+  const normalizeHomoglyphs = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .trim()
+      .replace(/0/g, "o")
+      .replace(/1/g, "l")
+      .replace(/3/g, "e")
+      .replace(/4/g, "a")
+      .replace(/5/g, "s")
+      .replace(/@/g, "a")
+      .replace(/\$/g, "s")
+      .replace(/vv/g, "w")
+      .replace(/[^a-z0-9]/g, "");
+
+  const s1 = normalizeHomoglyphs(str1);
+  const s2 = normalizeHomoglyphs(str2);
+
+  if (s1 === s2) return 0;
+  if (!s1.length) return s2.length;
+  if (!s2.length) return s1.length;
+
+  const row = [];
+  for (let i = 0; i <= s1.length; i++) row[i] = i;
+
+  for (let i = 1; i <= s2.length; i++) {
+    let prev = i;
+    for (let j = 1; j <= s1.length; j++) {
+      let val;
+      if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
+        val = row[j - 1];
+      } else {
+        val = Math.min(row[j - 1] + 1, prev + 1, row[j] + 1);
+      }
+      row[j - 1] = prev;
+      prev = val;
+    }
+    row[s1.length] = prev;
+  }
+
+  return row[s1.length];
+}
+
+/**
+ * Payee Verification Sub-Check: Lookalike Names Detector
+ * Flags payee names within edit distance 1-2 of saved allowlisted buyers
+ * as suspected spoofing attempts (e.g., 'Rahu1 Mehta', 'Rahulll', 'Elena R0stova').
+ *
+ * @param {string} inputName
+ * @param {number} [customThreshold=2]
+ * @returns {{ isLookalike: boolean, isExactMatch: boolean, targetBuyer?: string, targetToken?: string, distance?: number, reason?: string }}
+ */
+export function detectLookalikePayee(inputName = "", customThreshold = 2) {
+  if (!inputName || typeof inputName !== "string") {
+    return { isLookalike: false, isExactMatch: false };
+  }
+
+  const rawClean = inputName.trim().toLowerCase();
+  const knownBuyers = listMaskedBuyers();
+
+  for (const b of knownBuyers) {
+    const targetFull = (b.displayName || "").trim().toLowerCase();
+    const targetFirst = targetFull.split(/\s+/)[0] || "";
+
+    // Exact matches are legitimate, not lookalikes
+    if (rawClean === targetFull || rawClean === targetFirst) {
+      return { isLookalike: false, isExactMatch: true, matchedBuyer: b.displayName };
+    }
+
+    // Check full name homoglyph & raw Levenshtein
+    const distFull = computeHomoglyphLevenshtein(rawClean, targetFull);
+    const rawDistFull = computeRawLevenshtein(rawClean, targetFull);
+
+    const isHomoglyphSwap = distFull === 0 && rawDistFull > 0;
+    const isEditDistanceClose = rawDistFull >= 1 && rawDistFull <= customThreshold;
+
+    if (isHomoglyphSwap || isEditDistanceClose) {
+      const distance = isHomoglyphSwap ? rawDistFull : Math.min(distFull, rawDistFull);
+      return {
+        isLookalike: true,
+        isExactMatch: false,
+        inputName,
+        targetBuyer: b.displayName,
+        targetToken: b.buyerToken,
+        distance,
+        reason: `Suspected payee lookalike spoofing: '${inputName}' is deceptively close to allowlisted buyer '${b.displayName}' (edit distance: ${distance}).`,
+      };
+    }
+
+    // Check first name if input is a single word
+    if (!rawClean.includes(" ")) {
+      const distFirst = computeHomoglyphLevenshtein(rawClean, targetFirst);
+      const rawDistFirst = computeRawLevenshtein(rawClean, targetFirst);
+      const isFirstHomoglyph = distFirst === 0 && rawDistFirst > 0;
+      const isFirstEditClose = rawDistFirst >= 1 && rawDistFirst <= customThreshold;
+
+      if (isFirstHomoglyph || isFirstEditClose) {
+        const distance = isFirstHomoglyph ? rawDistFirst : Math.min(distFirst, rawDistFirst);
+        return {
+          isLookalike: true,
+          isExactMatch: false,
+          inputName,
+          targetBuyer: b.displayName,
+          targetToken: b.buyerToken,
+          distance,
+          reason: `Suspected payee lookalike spoofing: '${inputName}' is deceptively close to allowlisted buyer '${b.displayName}' (edit distance: ${distance}).`,
+        };
+      }
+    }
+  }
+
+  return { isLookalike: false, isExactMatch: false };
+}
+
+/**
+ * 4-Tier Explicit Risk Classification Engine
+ * Evaluates an intent into Level 1 (Low), Level 2 (Standard), Level 3 (Elevated), or Level 4 (Critical/Blocked)
+ *
+ * @param {object} intent
+ * @param {object} [options={}]
+ * @returns {object} { riskTier, riskScore, levelLabel, requiresPasskey, requiresCameraLiveness, blocked, amountDeviationWarning, reasons }
+ */
+export function classifyTransactionRisk(intent = {}, options = {}) {
+  const {
+    action = "create_invoice",
+    amount = (intent.amount !== undefined ? intent.amount : intent.amountUsd) || 0,
+    currency = "USD",
+  } = intent;
+  const numAmt = Number(amount);
+  const reasons = [];
+
+  // Level 1: Read-only actions (No passkey required)
+  if (action !== "create_invoice") {
+    return {
+      riskTier: "LEVEL_1",
+      riskScore: 5,
+      levelLabel: "Level 1 (Low Risk)",
+      requiresPasskey: false,
+      requiresCameraLiveness: false,
+      blocked: false,
+      reasons: ["Read-only action. No funds or invoicing operations affected."],
+    };
+  }
+
+  // Resolve buyer if not explicitly provided in options
+  const buyer = options.buyer || resolveBuyerToken(intent.buyer_token || intent.buyerToken || intent.buyer);
+
+  // Check lookalike status
+  const payeeName = intent.buyer_name || intent.payee_name || intent.buyerName || (buyer ? buyer.displayName : "");
+  const lookalike = options.lookalikeCheck || (payeeName ? detectLookalikePayee(payeeName) : { isLookalike: false });
+
+  // Level 4 Checks (Hard Blocked)
+  if (String(currency).toUpperCase() === "INR") {
+    reasons.push("Domestic INR transfers prohibited on PayPal India cross-border pathway");
+    return {
+      riskTier: "LEVEL_4",
+      riskScore: 95,
+      levelLabel: "Level 4 (Critical / Blocked)",
+      requiresPasskey: false,
+      requiresCameraLiveness: false,
+      blocked: true,
+      reasons,
+    };
+  }
+
+  if (numAmt > 2500) {
+    reasons.push(`Amount $${numAmt} exceeds $2,500 USD statutory per-invoice OPGSP export limit`);
+    return {
+      riskTier: "LEVEL_4",
+      riskScore: 100,
+      levelLabel: "Level 4 (Critical / Blocked)",
+      requiresPasskey: false,
+      requiresCameraLiveness: false,
+      blocked: true,
+      reasons,
+    };
+  }
+
+  if (lookalike?.isLookalike) {
+    reasons.push(lookalike.reason);
+    return {
+      riskTier: "LEVEL_4",
+      riskScore: 90,
+      levelLabel: "Level 4 (Critical / Blocked)",
+      requiresPasskey: false,
+      requiresCameraLiveness: false,
+      blocked: true,
+      lookalikeStatus: "SPOOFING_DETECTED",
+      reasons,
+    };
+  }
+
+  if (!buyer) {
+    reasons.push("Buyer not found in allowlisted AES-256-GCM vault");
+    return {
+      riskTier: "LEVEL_4",
+      riskScore: 88,
+      levelLabel: "Level 4 (Critical / Blocked)",
+      requiresPasskey: false,
+      requiresCameraLiveness: false,
+      blocked: true,
+      reasons,
+    };
+  }
+
+  // Level 3 Checks (Elevated Risk: Step-Up Passkey + Live Camera Presence Required)
+  let isElevated = false;
+  let score = 25;
+
+  let isAmountDeviated = options.amountDeviationWarning;
+  let ratio = options.deviationRatio;
+  if (isAmountDeviated === undefined && buyer && buyer.defaultAmount && buyer.defaultAmount > 0) {
+    if (numAmt > 2 * buyer.defaultAmount) {
+      isAmountDeviated = true;
+      ratio = (numAmt / buyer.defaultAmount).toFixed(1);
+    }
+  }
+
+  if (isAmountDeviated) {
+    isElevated = true;
+    score += 35;
+    reasons.push(`Amount deviation: Requested amount ($${numAmt}) is ${ratio || ">2"}x higher than historical baseline ($${buyer?.defaultAmount || 0})`);
+  }
+
+  const inCooldown = typeof options.inCooldown === "boolean"
+    ? options.inCooldown
+    : Boolean(isBuyerInCooldown(buyer)?.inCooldown);
+  if (inCooldown) {
+    isElevated = true;
+    score += 30;
+    reasons.push("New payee in active 30-minute security cool-down window");
+  }
+
+  if (isElevated) {
+    return {
+      riskTier: "LEVEL_3",
+      riskScore: Math.min(score, 84),
+      levelLabel: "Level 3 (Elevated Risk)",
+      requiresPasskey: true,
+      requiresCameraLiveness: true,
+      blocked: false,
+      amountDeviationWarning: Boolean(isAmountDeviated),
+      deviationRatio: ratio,
+      reasons,
+    };
+  }
+
+  // Level 2: Standard Risk (Standard Passkey Required)
+  return {
+    riskTier: "LEVEL_2",
+    riskScore: 25,
+    levelLabel: "Level 2 (Standard Risk)",
+    requiresPasskey: true,
+    requiresCameraLiveness: false,
+    blocked: false,
+    amountDeviationWarning: false,
+    reasons: ["Saved allowlisted buyer within normal historical parameters."],
+  };
+}
+
 /**
  * Deterministic Money Guide AI Policy Engine
  * Runs strict deterministic financial validation - Zero LLM hallucination risk.
- * @param {object} intent - { buyer_token, item, amount, currency, quantity, readBackConfirmed }
- * @param {object} [options={}] - { requireReadBack: boolean }
- * @returns {{ approved: boolean, policyViolation: string | null, message: string, buyer: object | null, policySnapshot: object }}
+ * @param {object} intent - { buyer_token, item, amount, currency, quantity, readBackConfirmed, payee_name }
+ * @param {object} [options={}] - { requireReadBack: boolean, bypassCooldown: boolean, enforceCooldown: boolean }
+ * @returns {{ approved: boolean, policyViolation: string | null, message: string, buyer: object | null, policySnapshot: object, riskClassification: object }}
  */
 export function evaluateTransactionPolicy(intent, options = {}) {
   cleanOldInvoices();
 
-  const { buyer_token, item, amount, currency, readBackConfirmed } = intent || {};
+  const { buyer_token, item, amount, currency, readBackConfirmed, payee_name, buyer_name } = intent || {};
   const numAmount = Number(amount);
 
-  // 1. Buyer Allowlist Check
+  // 1. Payee Verification: Lookalike Name Spoofing Check
+  const candidateName = payee_name || buyer_name || options.buyerName || null;
+  if (candidateName) {
+    const lookalike = detectLookalikePayee(candidateName);
+    if (lookalike.isLookalike) {
+      const riskClassification = classifyTransactionRisk(intent, { lookalikeCheck: lookalike });
+      return {
+        approved: false,
+        policyViolation: "LOOKALIKE_PAYEE_SPOOFING",
+        message: lookalike.reason,
+        buyer: null,
+        riskClassification,
+        policySnapshot: { lookalike, checkedAt: new Date().toISOString() },
+      };
+    }
+  }
+
+  // 2. Buyer Allowlist Check
   const buyer = resolveBuyerToken(buyer_token);
   if (!buyer) {
+    const riskClassification = classifyTransactionRisk(intent, { buyer: null });
     return {
       approved: false,
       policyViolation: "BUYER_NOT_ALLOWLISTED",
       message: `Buyer token '${buyer_token}' is not found in the verified PII Vault. Untrusted recipients cannot be invoiced.`,
       buyer: null,
+      riskClassification,
       policySnapshot: { buyer_token, checkedAt: new Date().toISOString() },
     };
   }
 
-  // 2. Read-Back Confirmation Enforcement (Required before step-up verification)
+  // 3. New Payee Cool-Down Period Check
+  const cooldownCheck = isBuyerInCooldown(buyer, options);
+  if (cooldownCheck.inCooldown && options.enforceCooldown === true) {
+    const remainingMins = Math.ceil(cooldownCheck.remainingMs / 60000);
+    return {
+      approved: false,
+      policyViolation: "NEW_PAYEE_COOLDOWN_ACTIVE",
+      message: `Newly enrolled payee is currently in a 30-minute security cool-down period (${remainingMins} min remaining). High-velocity first-time billing blocked.`,
+      buyer,
+      policySnapshot: { cooldownUntil: cooldownCheck.cooldownUntil, remainingMins },
+    };
+  }
+
+  // 4. Amount Deviation & Frequency Check (> 2x historical average)
+  const defaultAmt = Number(buyer.defaultAmount || 200.0);
+  const amountDeviationWarning = !isNaN(numAmount) && defaultAmt > 0 && numAmount > 2.0 * defaultAmt;
+  const deviationRatio = defaultAmt > 0 ? Number((numAmount / defaultAmt).toFixed(2)) : 1.0;
+
+  // 5. Read-Back Confirmation Enforcement (Required before step-up verification)
   if (options.requireReadBack === true) {
     if (readBackConfirmed !== true) {
       return {
@@ -226,14 +548,16 @@ export function evaluateTransactionPolicy(intent, options = {}) {
     }
   }
 
-  // 3. Currency Compliance (PayPal India OPGSP Rule & 25-Currency Normalization)
+  // 6. Currency Compliance (PayPal India OPGSP Rule & 25-Currency Normalization)
   const normCurrency = String(currency || "").trim().toUpperCase();
   if (normCurrency === "INR") {
+    const riskClassification = classifyTransactionRisk(intent, { buyer });
     return {
       approved: false,
       policyViolation: "DOMESTIC_INR_NOT_SUPPORTED",
       message: "PayPal India regulations strictly prohibit domestic INR transfers under RBI OPGSP guidelines. PayVoice only supports cross-border export invoicing in approved foreign currencies.",
       buyer,
+      riskClassification,
       policySnapshot: { requestedCurrency: normCurrency, permittedCurrencies: Object.keys(STATIC_FX_RATES_V1) },
     };
   }
@@ -249,7 +573,7 @@ export function evaluateTransactionPolicy(intent, options = {}) {
     };
   }
 
-  // 4. Export Value Cap Enforcement (Integer Minor-Unit Normalized to USD)
+  // 7. Export Value Cap Enforcement (Integer Minor-Unit Normalized to USD)
   if (isNaN(numAmount) || numAmount <= 0) {
     return {
       approved: false,
@@ -275,11 +599,13 @@ export function evaluateTransactionPolicy(intent, options = {}) {
 
   const maxCap = Math.min(buyer.maxLimit || 2500.0, 2500.0);
   if (normalized.usdEquivalent > maxCap) {
+    const riskClassification = classifyTransactionRisk(intent, { buyer });
     return {
       approved: false,
       policyViolation: "EXPORT_LIMIT_EXCEEDED",
       message: `Requested amount ${numAmount.toFixed(2)} ${normCurrency} ($${normalized.usdEquivalent.toFixed(2)} USD equivalent) exceeds the authorized regulatory limit of $${maxCap.toFixed(2)} USD for this exporter.`,
       buyer,
+      riskClassification,
       policySnapshot: {
         requestedAmount: numAmount,
         currency: normCurrency,
@@ -290,7 +616,7 @@ export function evaluateTransactionPolicy(intent, options = {}) {
     };
   }
 
-  // 5. Duplicate Invoice Idempotency Check
+  // 8. Duplicate Invoice Idempotency Check
   const normalizedItem = String(item || "").trim().toLowerCase();
   const idempotencyKey = crypto
     .createHash("sha256")
@@ -316,11 +642,23 @@ export function evaluateTransactionPolicy(intent, options = {}) {
 
   const rbiClassification = classifyRbiPurposeCode(normalizedItem, options.merchantIec);
 
+  // Compute 4-Tier Risk Assessment
+  const riskClassification = classifyTransactionRisk(intent, {
+    buyer,
+    amountDeviationWarning,
+    deviationRatio,
+    inCooldown: cooldownCheck.inCooldown,
+  });
+
   return {
     approved: true,
     policyViolation: null,
     message: "All deterministic Money Guide policies passed. Invoice is eligible for step-up WebAuthn passkey staging.",
     buyer,
+    amountDeviationWarning,
+    deviationRatio,
+    cooldownStatus: cooldownCheck,
+    riskClassification,
     policySnapshot: {
       buyerToken: buyer.buyerToken,
       buyerName: buyer.name,
@@ -332,6 +670,10 @@ export function evaluateTransactionPolicy(intent, options = {}) {
       rbiCategory: rbiClassification.category,
       rbiDescription: rbiClassification.description,
       merchantIec: rbiClassification.merchantIec,
+      amountDeviationWarning,
+      deviationRatio,
+      riskTier: riskClassification.riskTier,
+      riskScore: riskClassification.riskScore,
       evaluatedAt: new Date().toISOString(),
     },
   };
