@@ -34,17 +34,25 @@ export function classifyRbiPurposeCode(itemDescription = "", merchantIec = null)
   const goodsKeywords = [
     "hardware", "equipment", "server rack", "device", "physical kit",
     "electronics", "appliance", "circuit", "sensor", "storage drive",
+    "handloom", "goods", "physical",
+  ];
+
+  const designKeywords = [
+    "ui/ux", "ui", "ux", "design", "graphic", "product design",
+    "wireframe", "prototype", "branding", "illustration", "figma",
   ];
 
   const servicesKeywords = [
     "software", "consulting", "consultancy", "code", "development", "dev",
-    "ui/ux", "design", "api", "cloud", "saas", "frontend", "backend",
+    "api", "cloud", "saas", "frontend", "backend",
     "full-stack", "testing", "qa", "freelance", "translation", "audit",
     "support", "license", "maintenance", "service", "services", "analytics", "engineering",
+    "firmware", "penetration", "cyber",
   ];
 
+  const isDesign = designKeywords.some((kw) => norm.includes(kw));
   const isExplicitService = servicesKeywords.some((kw) => norm.includes(kw));
-  const isGoods = !isExplicitService && goodsKeywords.some((kw) => norm.includes(kw));
+  const isGoods = !isExplicitService && !isDesign && goodsKeywords.some((kw) => norm.includes(kw));
 
   const resolvedIec = merchantIec || process.env.MERCHANT_IEC || "0319088821";
   const isIecFormatValid = /^[A-Z0-9]{10}$/.test(String(resolvedIec).trim().toUpperCase());
@@ -53,20 +61,34 @@ export function classifyRbiPurposeCode(itemDescription = "", merchantIec = null)
     return {
       purposeCode: "P0103",
       category: "GOODS",
-      description: "Export of Goods (Physical Cargo / OPGSP Guidelines)",
+      description: "Export of Physical MSME / Handloom Goods (OPGSP)",
       iecRequired: true,
       iecValid: isIecFormatValid,
       merchantIec: isIecFormatValid ? String(resolvedIec).trim().toUpperCase() : "INVALID_IEC",
+      lutStatus: "Export under Bond/LUT without payment of IGST",
+    };
+  }
+
+  if (isDesign) {
+    return {
+      purposeCode: "P1004",
+      category: "SERVICES",
+      description: "Engineering, UI/UX & Product Design Services",
+      iecRequired: false,
+      iecValid: true,
+      merchantIec: "EXEMPT_SERVICES",
+      lutStatus: "Export under LUT without payment of IGST (Rule 96A CGST Rules)",
     };
   }
 
   return {
     purposeCode: "P0802",
     category: "SERVICES",
-    description: "Software & Consultancy Services (Cross-Border Non-Physical)",
+    description: "Software Implementation & Cloud IT Consultancy",
     iecRequired: false,
     iecValid: true,
     merchantIec: "EXEMPT_SERVICES",
+    lutStatus: "Export under LUT without payment of IGST (Rule 96A CGST Rules)",
   };
 }
 
@@ -344,6 +366,87 @@ export function computeTransactionTotals(transactions = []) {
     estimatedFees: Number(estimatedFees.toFixed(2)),
     totalNet: Number(totalNet.toFixed(2)),
     calculatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Proactive Money Guide AI CFO Insights for Indian MSME Cross-Border Exporters
+ * Deterministically calculates foreign currency inflows, PayPal cross-border fees (4.4% + fixed fee),
+ * net INR realization at calibrated RBI exchange rates, and OPGSP $2,500 statutory cap allowance.
+ *
+ * @param {Array} transactions - Array of transaction objects
+ * @returns {object} Proactive CFO analytics and compliance health report
+ */
+export function computeCfoInsights(transactions = []) {
+  const FX_RATES_TO_INR = {
+    USD: 86.85,
+    EUR: 93.80,
+    GBP: 109.50,
+    CAD: 63.50,
+    AUD: 56.40,
+    SGD: 64.70,
+    JPY: 0.58,
+    CHF: 97.20,
+    AED: 23.65,
+  };
+
+  const inflowsByCurrency = {};
+  let totalGrossUsd = 0;
+  let totalEstimatedFeesUsd = 0;
+  let totalNetInr = 0;
+  let singleInvoiceMaxGrossUsd = 0;
+
+  for (const tx of transactions) {
+    const gross = Number(tx.amount || tx.grossAmount || 0);
+    const curr = (tx.currency || "USD").toUpperCase();
+    if (gross > 0) {
+      inflowsByCurrency[curr] = Number(((inflowsByCurrency[curr] || 0) + gross).toFixed(2));
+
+      // Normalize gross to USD
+      const fx = STATIC_FX_RATES_V1[curr] || { rateToUsd: 1.0 };
+      const usdVal = gross * fx.rateToUsd;
+      totalGrossUsd += usdVal;
+
+      if (usdVal > singleInvoiceMaxGrossUsd) {
+        singleInvoiceMaxGrossUsd = usdVal;
+      }
+
+      // India Cross-Border fee: 4.4% + fixed fee (approx $0.30 per tx)
+      const fee = Number(tx.fee || (gross * 0.044 + 0.30).toFixed(2));
+      const feeUsd = fee * fx.rateToUsd;
+      totalEstimatedFeesUsd += feeUsd;
+
+      // Net Inflow in native currency converted to INR
+      const netNative = Math.max(0, gross - fee);
+      const inrRate = FX_RATES_TO_INR[curr] || (fx.rateToUsd * 86.85);
+      totalNetInr += (netNative * inrRate);
+    }
+  }
+
+  const opgspCapUsd = 2500.0;
+  const remainingOpgspAllowance = Math.max(0, opgspCapUsd - singleInvoiceMaxGrossUsd);
+
+  return {
+    inflowsByCurrency,
+    totalGrossUsd: Number(totalGrossUsd.toFixed(2)),
+    totalEstimatedFeesUsd: Number(totalEstimatedFeesUsd.toFixed(2)),
+    effectiveFeeRatePercent: totalGrossUsd > 0 ? Number(((totalEstimatedFeesUsd / totalGrossUsd) * 100).toFixed(2)) : 4.4,
+    netInrRealization: Number(totalNetInr.toFixed(2)),
+    formattedInrRealization: `₹${Math.round(totalNetInr).toLocaleString("en-IN")}`,
+    opgspLimit: {
+      perInvoiceCapUsd: opgspCapUsd,
+      maxInvoiceIssuedUsd: Number(singleInvoiceMaxGrossUsd.toFixed(2)),
+      remainingAllowanceUsd: Number(remainingOpgspAllowance.toFixed(2)),
+      capUtilizedPercent: Number(((singleInvoiceMaxGrossUsd / opgspCapUsd) * 100).toFixed(1)),
+      status: remainingOpgspAllowance > 0 ? "WITHIN_OPGSP_STATUTORY_CAP" : "CAP_REACHED",
+    },
+    regulatoryCompliance: {
+      iecCode: process.env.MERCHANT_IEC || "0319088821",
+      gstLutRule: "Rule 96A CGST Rules (Zero-Rated Export without payment of IGST)",
+      fircStatus: "Auto e-FIRC ready on PayPal INR bank disbursement",
+      bankRealization: "RBI EDPMS auto-reporting via Authorized Dealer Bank",
+    },
+    analyzedAt: new Date().toISOString(),
   };
 }
 

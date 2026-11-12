@@ -1,25 +1,91 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { inspectUntrustedInput, validateIntentSchema } from "../services/guardrail.js";
-import { evaluateTransactionPolicy } from "../services/moneyGuide.js";
-import { resolveBuyerToken } from "../services/vault.js";
+import { evaluateTransactionPolicy, classifyRbiPurposeCode } from "../services/moneyGuide.js";
+import { resolveBuyerToken, findBuyerByNameOrToken } from "../services/vault.js";
 import { appendAuditEntry } from "../services/auditLedger.js";
 import { createPayloadBoundChallenge, verifyPasskeyAssertion } from "./auth.js";
 import { securePayPalTools, issueSecurityExecutionTicket } from "../services/secureToolkitWrapper.js";
+import { parseMultilingualIntent } from "../services/intentParser.js";
 
 const router = Router();
 
 // In-memory staged invoices map (stageId -> stagedInvoice)
 const stagedInvoices = new Map();
 
+// In-memory executed invoices map (invoiceId -> invoiceRecord)
+const executedInvoices = new Map();
+
+// Server-Sent Events (SSE) subscriber clients
+const sseClients = new Set();
+
+/**
+ * Broadcast real-time status update to all connected frontend clients
+ * @param {string} event
+ * @param {object} data
+ */
+export function broadcastInvoiceEvent(event, data) {
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const client of sseClients) {
+    try {
+      client.res.write(payload);
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+}
+
+/**
+ * GET /api/invoices/stream
+ * Server-Sent Events (SSE) live status stream for zero-click UI progression
+ */
+router.get("/stream", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  const client = { id: Date.now(), res };
+  sseClients.add(client);
+
+  // Send initial connection ping
+  res.write(`event: connected\ndata: ${JSON.stringify({ time: new Date().toISOString() })}\n\n`);
+
+  req.on("close", () => {
+    sseClients.delete(client);
+  });
+});
+
+/**
+ * POST /api/invoices/parse-intent
+ * Standalone intent parser endpoint exposing multilingual Gemini & deterministic engine
+ */
+router.post("/parse-intent", async (req, res) => {
+  try {
+    const { transcript = "", language = "auto" } = req.body || {};
+    const intent = await parseMultilingualIntent(transcript, { language });
+    return res.json({
+      success: true,
+      transcript,
+      intent,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 /**
  * POST /api/invoices/stage
  * Validates untrusted input, evaluates Money Guide policies,
  * generates a payload-bound WebAuthn challenge, and stages invoice preview.
+ * Includes Zero-Touch Staging: If only a transcript is sent, auto-parses intent.
  */
 router.post("/stage", async (req, res) => {
   try {
-    const { transcript = "", intent = {} } = req.body || {};
+    let { transcript = "", intent = {} } = req.body || {};
 
     // 1. Prompt-Injection & Untrusted Input Firewall Check
     const transcriptGuard = inspectUntrustedInput(transcript);
@@ -39,14 +105,28 @@ router.post("/stage", async (req, res) => {
       });
     }
 
+    // Zero-Touch Auto-Extraction: If transcript is present and fields are missing, auto-parse
+    if (transcript && (!intent.buyer_token && !req.body.buyer_token)) {
+      try {
+        const parsed = await parseMultilingualIntent(transcript, { language: req.body.language });
+        intent = { ...parsed, ...intent };
+      } catch (parseErr) {
+        console.warn("[Invoice Staging Auto-Parse Note]:", parseErr.message);
+      }
+    }
+
     // Combine parameters from body or intent
+    const rawBuyerInput = intent.buyer_token || req.body.buyer_token || "";
+    const matchedBuyer = findBuyerByNameOrToken(rawBuyerInput);
+    const resolvedBuyerToken = matchedBuyer ? matchedBuyer.buyerToken : String(rawBuyerInput).trim().toUpperCase();
+
     const invoiceIntent = {
       action: intent.action || "create_invoice",
-      buyer_token: (intent.buyer_token || req.body.buyer_token || "").trim().toUpperCase(),
-      item: (intent.item || req.body.item || "").trim(),
-      amount: Number(intent.amount || req.body.amount || 0),
-      currency: (intent.currency || req.body.currency || "USD").trim().toUpperCase(),
-      quantity: intent.quantity || req.body.quantity || "1 unit",
+      buyer_token: resolvedBuyerToken,
+      item: (intent.item || req.body.item || (matchedBuyer?.defaultItem) || "Cloud API Development").trim(),
+      amount: Number(intent.amount || req.body.amount || (matchedBuyer?.defaultAmount) || 0),
+      currency: (intent.currency || req.body.currency || (matchedBuyer?.currency) || "USD").trim().toUpperCase(),
+      quantity: intent.quantity || req.body.quantity || (matchedBuyer?.defaultQuantity) || "1 Milestone",
     };
 
     // 2. Strict Schema Validation
@@ -80,6 +160,9 @@ router.post("/stage", async (req, res) => {
 
     const buyer = policyResult.buyer;
 
+    // Classify RBI Purpose Code & DGFT compliance
+    const rbi = classifyRbiPurposeCode(invoiceIntent.item, buyer.iecCode);
+
     // 4. Construct Staged Payload
     const stageId = `STAGE_${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
     const stagedPayload = {
@@ -87,11 +170,15 @@ router.post("/stage", async (req, res) => {
       buyerToken: buyer.buyerToken,
       buyerName: buyer.name,
       buyerEmail: buyer.email,
+      buyerCompany: buyer.company || "International Client",
       buyerCountry: buyer.country,
       item: invoiceIntent.item,
       quantity: invoiceIntent.quantity,
       amount: invoiceIntent.amount,
       currency: invoiceIntent.currency,
+      rbiPurposeCode: rbi.purposeCode,
+      rbiDescription: rbi.description,
+      lutStatus: rbi.lutStatus || "Export under LUT without payment of IGST (Rule 96A CGST Rules)",
       stagedAt: new Date().toISOString(),
     };
 
@@ -121,19 +208,28 @@ router.post("/stage", async (req, res) => {
       mr: `${buyer.name} साठी ${stagedPayload.amount.toFixed(2)} ${stagedPayload.currency} चे इनव्हॉईस तयार केले आहे. पाठवण्यासाठी पासकी पडताळणी करा.`,
     };
 
-    return res.json({
+    // Formatted INR calculation for UI presentation
+    const fxRateToInr = stagedPayload.currency === "EUR" ? 93.80 : stagedPayload.currency === "GBP" ? 109.50 : 86.85;
+    const estInr = Math.round(stagedPayload.amount * fxRateToInr);
+
+    const stageResponse = {
       success: true,
       stageId,
       stagedPayload,
       previewCard: {
         buyerToken: buyer.buyerToken,
         buyerDisplayName: buyer.name,
+        buyerCompany: buyer.company || "International Client",
         buyerCountry: buyer.country,
         item: stagedPayload.item,
         quantity: stagedPayload.quantity,
-        amountFormatted: `$${stagedPayload.amount.toFixed(2)} ${stagedPayload.currency}`,
+        amountFormatted: `${stagedPayload.currency === "EUR" ? "€" : stagedPayload.currency === "GBP" ? "£" : "$"}${stagedPayload.amount.toFixed(2)} ${stagedPayload.currency}`,
         rawAmount: stagedPayload.amount,
         currency: stagedPayload.currency,
+        rbiPurposeCode: rbi.purposeCode,
+        rbiDescription: rbi.description,
+        lutStatus: stagedPayload.lutStatus,
+        estInrFormatted: `~₹${estInr.toLocaleString("en-IN")} INR`,
         payloadHash,
       },
       webauthn: {
@@ -144,7 +240,11 @@ router.post("/stage", async (req, res) => {
       },
       readBackMessages,
       auditRecord,
-    });
+    };
+
+    broadcastInvoiceEvent("invoice_staged", stageResponse);
+
+    return res.json(stageResponse);
   } catch (error) {
     console.error("[Invoices Stage Error]:", error);
     return res.status(500).json({ success: false, error: "Internal error during invoice staging: " + error.message });
@@ -154,11 +254,12 @@ router.post("/stage", async (req, res) => {
 /**
  * POST /api/invoices/execute
  * Verifies the WebAuthn passkey assertion signature bound to the payload hash,
- * then dispatches the invoice to PayPal Sandbox (DRAFT -> SENT).
+ * then dispatches the invoice to PayPal Sandbox (DRAFT -> SENT) in a single turn.
+ * Optionally triggers automatic sandbox settlement to PAID for live demos.
  */
 router.post("/execute", async (req, res) => {
   try {
-    const { stageId, challengeId, assertion, expectedPayloadHash } = req.body || {};
+    const { stageId, challengeId, assertion, expectedPayloadHash, autoSettleSeconds } = req.body || {};
 
     if (!stageId || !challengeId) {
       return res.status(400).json({ success: false, error: "Missing stageId or challengeId for invoice execution" });
@@ -240,8 +341,34 @@ router.post("/execute", async (req, res) => {
       paypalResponse = { note: "Executed via PayVoice verified sandbox connector", simulatedId: invoiceId };
     }
 
-    // 3. Mark stage complete and remove from staged map
+    // 3. Mark stage complete and record in executedInvoices map
     stagedInvoices.delete(stageId);
+
+    const invoiceRecord = {
+      invoiceId,
+      stageId,
+      status: "SENT",
+      buyerToken: staged.buyerToken,
+      buyerName: staged.buyerName,
+      buyerEmail: staged.buyerEmail,
+      buyerCompany: staged.buyerCompany,
+      item: staged.item,
+      quantity: staged.quantity,
+      amount: staged.amount,
+      currency: staged.currency,
+      rbiPurposeCode: staged.rbiPurposeCode || "P0802",
+      rbiDescription: staged.rbiDescription || "Software Implementation & Cloud IT Consultancy",
+      lutStatus: staged.lutStatus,
+      assertionId: authResult.assertionId,
+      createdAt: new Date().toISOString(),
+      timeline: [
+        { status: "STAGED", label: "Voice Intent Staged & PII Vault Bound", timestamp: staged.stagedAt },
+        { status: "AUTHENTICATED", label: "Biometric FIDO2 Passkey Signed", timestamp: new Date().toISOString() },
+        { status: "DRAFT", label: "PayPal Sandbox Draft Invoice Created", timestamp: new Date().toISOString() },
+        { status: "SENT", label: "Dispatched to International Buyer via Email", timestamp: new Date().toISOString() },
+      ],
+    };
+    executedInvoices.set(invoiceId, invoiceRecord);
 
     // 4. Append Confirmed Execution to Tamper-Evident Audit Ledger
     const confirmedAudit = appendAuditEntry({
@@ -253,19 +380,146 @@ router.post("/execute", async (req, res) => {
       metadata: { stageId, payloadHash: payloadHashToVerify, assertionId: authResult.assertionId },
     });
 
-    return res.json({
+    const executeResponse = {
       success: true,
       invoiceId,
       status: "SENT",
       stagedPayload: staged,
+      invoiceRecord,
       assertionId: authResult.assertionId,
       auditRecord: confirmedAudit,
       paypalResponse,
-    });
+    };
+
+    broadcastInvoiceEvent("invoice_sent", executeResponse);
+
+    // 5. Automatic Sandbox Settlement Progression (Zero-Touch Video Demo)
+    const settleSecs = Number(autoSettleSeconds ?? req.query.autoSettle ?? 5);
+    if (settleSecs > 0) {
+      setTimeout(() => {
+        const inv = executedInvoices.get(invoiceId);
+        if (inv && inv.status === "SENT") {
+          inv.status = "PAID";
+          inv.paidAt = new Date().toISOString();
+          inv.timeline.push({
+            status: "PAID",
+            label: "Cross-Border Remittance Settled via OPGSP (e-FIRC Ready)",
+            timestamp: inv.paidAt,
+          });
+
+          appendAuditEntry({
+            transcript: `Auto-Settled OPGSP Inward Remittance for ${invoiceId}`,
+            stagedPayload: { invoiceId, amount: inv.amount, currency: inv.currency },
+            passkeyAssertionId: authResult.assertionId,
+            invoiceId,
+            status: "INVOICE_PAID",
+            metadata: { settledAt: inv.paidAt, channel: "PayPal_OPGSP" },
+          });
+
+          broadcastInvoiceEvent("invoice_paid", {
+            invoiceId,
+            status: "PAID",
+            invoiceRecord: inv,
+          });
+        }
+      }, settleSecs * 1000);
+    }
+
+    return res.json(executeResponse);
   } catch (error) {
     console.error("[Invoices Execute Error]:", error);
     return res.status(500).json({ success: false, error: "Failed to execute invoice: " + error.message });
   }
+});
+
+/**
+ * GET /api/invoices
+ * Lists recent staged and executed invoices
+ */
+router.get("/", (req, res) => {
+  const activeList = Array.from(executedInvoices.values()).sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+  return res.json({
+    success: true,
+    count: activeList.length,
+    invoices: activeList,
+  });
+});
+
+/**
+ * GET /api/invoices/:id/status
+ * Retrieve live invoice status and lifecycle timeline for polling
+ */
+router.get("/:id/status", (req, res) => {
+  const { id } = req.params;
+  const invoice = executedInvoices.get(id);
+
+  if (!invoice) {
+    // Check if it's currently staged
+    const staged = stagedInvoices.get(id);
+    if (staged) {
+      return res.json({
+        success: true,
+        invoiceId: id,
+        status: "STAGED",
+        stagedPayload: staged.stagedPayload,
+      });
+    }
+
+    return res.status(404).json({ success: false, error: `Invoice '${id}' not found` });
+  }
+
+  return res.json({
+    success: true,
+    invoiceId: id,
+    status: invoice.status,
+    invoice,
+    timeline: invoice.timeline,
+  });
+});
+
+/**
+ * POST /api/invoices/:id/simulate-payment
+ * Manually simulate OPGSP inward settlement to PAID status
+ */
+router.post("/:id/simulate-payment", (req, res) => {
+  const { id } = req.params;
+  const invoice = executedInvoices.get(id);
+
+  if (!invoice) {
+    return res.status(404).json({ success: false, error: `Invoice '${id}' not found` });
+  }
+
+  invoice.status = "PAID";
+  invoice.paidAt = new Date().toISOString();
+  invoice.timeline.push({
+    status: "PAID",
+    label: "Cross-Border Remittance Settled via OPGSP (e-FIRC Ready)",
+    timestamp: invoice.paidAt,
+  });
+
+  appendAuditEntry({
+    transcript: `Manual Simulated OPGSP Inward Remittance for ${id}`,
+    stagedPayload: { invoiceId: id, amount: invoice.amount, currency: invoice.currency },
+    passkeyAssertionId: invoice.assertionId || "SIMULATED_SETTLEMENT",
+    invoiceId: id,
+    status: "INVOICE_PAID",
+    metadata: { settledAt: invoice.paidAt, channel: "PayPal_OPGSP" },
+  });
+
+  broadcastInvoiceEvent("invoice_paid", {
+    invoiceId: id,
+    status: "PAID",
+    invoiceRecord: invoice,
+  });
+
+  return res.json({
+    success: true,
+    invoiceId: id,
+    status: "PAID",
+    invoice,
+  });
 });
 
 export default router;

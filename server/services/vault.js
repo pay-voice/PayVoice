@@ -40,6 +40,10 @@ export function computeBlindIndex(email) {
 }
 
 const RAHUL_EMAIL = "rahul.mehta@techglobal-corp.com";
+const ELENA_EMAIL = "elena.rostova@nordicstudio.eu";
+const OLIVER_EMAIL = "oliver.grant@finscale.co.uk";
+const AKIRA_EMAIL = "akira.sato@nexusrobotics.jp";
+
 const DEFAULT_BUYERS = {
   BUYER_RAHUL_01: {
     buyerToken: "BUYER_RAHUL_01",
@@ -50,6 +54,63 @@ const DEFAULT_BUYERS = {
     country: "US",
     currency: "USD",
     maxLimit: 2500.0,
+    defaultItem: "Cloud API Development",
+    defaultQuantity: "1 Milestone",
+    defaultAmount: 200.0,
+    defaultPurposeCode: "P0802",
+    defaultPurposeDescription: "Software Implementation & Cloud IT Consultancy",
+    aliases: ["rahul", "rahul mehta", "राहुल", "राहुलला", "राहुलसाठी", "राहुल को"],
+    createdAt: "2026-11-10T00:00:00.000Z",
+  },
+  BUYER_ELENA_02: {
+    buyerToken: "BUYER_ELENA_02",
+    name: "Elena Rostova",
+    email: ELENA_EMAIL,
+    company: "Nordic Studio (EU)",
+    blindIndex: computeBlindIndex(ELENA_EMAIL),
+    country: "DE",
+    currency: "EUR",
+    maxLimit: 2500.0,
+    defaultItem: "UI/UX Design Sprint",
+    defaultQuantity: "40 Hours",
+    defaultAmount: 450.0,
+    defaultPurposeCode: "P1004",
+    defaultPurposeDescription: "Engineering, UI/UX & Product Design Services",
+    aliases: ["elena", "elena rostova", "एलेना", "एलेनाला", "एलेनासाठी", "एलेना को"],
+    createdAt: "2026-11-10T00:00:00.000Z",
+  },
+  BUYER_OLIVER_03: {
+    buyerToken: "BUYER_OLIVER_03",
+    name: "Oliver Grant",
+    email: OLIVER_EMAIL,
+    company: "FinScale Ltd (UK)",
+    blindIndex: computeBlindIndex(OLIVER_EMAIL),
+    country: "GB",
+    currency: "GBP",
+    maxLimit: 2500.0,
+    defaultItem: "Security Penetration Audit",
+    defaultQuantity: "1 Audit",
+    defaultAmount: 350.0,
+    defaultPurposeCode: "P0802",
+    defaultPurposeDescription: "Software Implementation & Cloud IT Consultancy",
+    aliases: ["oliver", "oliver grant", "ऑलिव्हर", "ऑलिव्हरला", "ऑलिव्हरसाठी", "ऑलिवर को"],
+    createdAt: "2026-11-10T00:00:00.000Z",
+  },
+  BUYER_AKIRA_04: {
+    buyerToken: "BUYER_AKIRA_04",
+    name: "Akira Sato",
+    email: AKIRA_EMAIL,
+    company: "Nexus Robotics (JP/SG)",
+    blindIndex: computeBlindIndex(AKIRA_EMAIL),
+    country: "JP",
+    currency: "USD",
+    maxLimit: 2500.0,
+    defaultItem: "Embedded Firmware Module",
+    defaultQuantity: "2 Units",
+    defaultAmount: 500.0,
+    defaultPurposeCode: "P0802",
+    defaultPurposeDescription: "Software Implementation & Cloud IT Consultancy",
+    aliases: ["akira", "akira sato", "अकिरा", "अकिराला", "अकिरासाठी", "अकीरा को"],
     createdAt: "2026-11-10T00:00:00.000Z",
   },
 };
@@ -138,12 +199,67 @@ export function redactPIIBeforeLLM(transcript) {
         redacted = redacted.replace(new RegExp(`\\b${firstNameEscaped}\\b`, "gi"), () => buyer.buyerToken);
       }
     }
+    if (Array.isArray(buyer.aliases)) {
+      for (const alias of buyer.aliases) {
+        if (alias && alias.length >= 2) {
+          const aliasEscaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          if (/[\u0900-\u097F]/.test(alias)) {
+            redacted = redacted.replace(new RegExp(aliasEscaped, "g"), () => buyer.buyerToken);
+          } else {
+            redacted = redacted.replace(new RegExp(`\\b${aliasEscaped}\\b`, "gi"), () => buyer.buyerToken);
+          }
+        }
+      }
+    }
   }
 
   // 2. Redact any remaining arbitrary raw emails to prevent unauthorized address injection
   redacted = redacted.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[REDACTED_EMAIL]");
 
   return redacted;
+}
+
+/**
+ * Find buyer by name, token, email or spoken multilingual alias
+ * @param {string} query
+ * @returns {object|null}
+ */
+export function findBuyerByNameOrToken(query) {
+  if (!query || typeof query !== "string") return null;
+  const q = query.trim().toLowerCase();
+  const upperQ = query.trim().toUpperCase();
+
+  // 1. Direct token match
+  if (buyers[upperQ]) return buyers[upperQ];
+
+  // 2. Exact match on name, email, or token
+  for (const buyer of Object.values(buyers)) {
+    if (buyer.buyerToken.toLowerCase() === q) return buyer;
+    if (buyer.email && buyer.email.toLowerCase() === q) return buyer;
+    if (buyer.name && buyer.name.toLowerCase() === q) return buyer;
+    const firstName = (buyer.name || "").split(/\s+/)[0]?.toLowerCase();
+    if (firstName && firstName === q) return buyer;
+
+    if (Array.isArray(buyer.aliases)) {
+      for (const alias of buyer.aliases) {
+        if (alias.toLowerCase() === q) return buyer;
+      }
+    }
+  }
+
+  // 3. Substring check in query
+  for (const buyer of Object.values(buyers)) {
+    const firstName = (buyer.name || "").split(/\s+/)[0]?.toLowerCase();
+    if (firstName && q.includes(firstName)) return buyer;
+    if (buyer.buyerToken.toLowerCase() && q.includes(buyer.buyerToken.toLowerCase())) return buyer;
+    if (Array.isArray(buyer.aliases)) {
+      for (const alias of buyer.aliases) {
+        if (alias && q.includes(alias.toLowerCase())) return buyer;
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -212,10 +328,16 @@ export function listMaskedBuyers() {
     return {
       buyerToken: b.buyerToken,
       displayName: b.name,
+      company: b.company || "International Client",
       maskedEmail,
       country: b.country,
       currency: b.currency,
       maxLimit: b.maxLimit,
+      defaultItem: b.defaultItem || "Cloud API Development",
+      defaultQuantity: b.defaultQuantity || "1 Milestone",
+      defaultAmount: b.defaultAmount || 200.0,
+      defaultPurposeCode: b.defaultPurposeCode || "P0802",
+      defaultPurposeDescription: b.defaultPurposeDescription || "Software Implementation & Cloud IT Consultancy",
       blindIndex: b.blindIndex || computeBlindIndex(b.email),
     };
   });

@@ -77,7 +77,16 @@ export function validateIntentSchema(intentJson) {
     return { valid: false, errors: ["Intent must be a valid JSON object"] };
   }
 
-  const allowedActions = ["create_invoice", "list_transactions", "get_insights", "export_statement"];
+  const allowedActions = [
+    "create_invoice",
+    "check_status",
+    "send_reminder",
+    "export_pdf_statement",
+    "financial_insight",
+    "list_transactions",
+    "get_insights",
+    "export_statement",
+  ];
   if (!allowedActions.includes(intentJson.action)) {
     errors.push(`Invalid action '${intentJson.action}'. Allowed: ${allowedActions.join(", ")}`);
   }

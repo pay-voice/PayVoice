@@ -7,6 +7,7 @@ import "dotenv/config";
 // Services
 import { getAuditLedger, verifyLedgerIntegrity } from "./server/services/auditLedger.js";
 import { listMaskedBuyers, registerBuyer } from "./server/services/vault.js";
+import { parseMultilingualIntent } from "./server/services/intentParser.js";
 
 // Routes
 import authRouter from "./server/routes/auth.js";
@@ -35,6 +36,27 @@ app.use("/api/transactions", transactionsRouter);
 app.use("/api/statements", statementsRouter);
 app.use("/api/webhooks", webhooksRouter);
 app.use("/api/security", securityRouter);
+
+/**
+ * POST /api/ai/parse-intent
+ * High-Precision Multilingual Gemini Intent Extraction with Instant Deterministic Fallback
+ */
+app.post("/api/ai/parse-intent", async (req, res) => {
+  try {
+    const { transcript = "", language = "auto" } = req.body || {};
+    const intent = await parseMultilingualIntent(transcript, { language });
+    res.json({
+      success: true,
+      transcript,
+      intent,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
 
 // --- Shared Security & Vault Endpoints ---
 
