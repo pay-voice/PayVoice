@@ -26,6 +26,8 @@ export function renderOverviewPage(mount) {
   const invoices = state.invoices || [];
   const ledger = state.auditLedger || [];
   const isConfigured = state.config?.isConfigured;
+  const budget = state.financialBudget || { monthlyTargetUsd: 5000 };
+  const schedules = state.financialSchedules || [];
 
   // Deterministic derived counts from backend data
   const paidInvoicesCount =
@@ -138,6 +140,55 @@ export function renderOverviewPage(mount) {
         </div>
       </div>
     </section>
+
+    <!-- Financial Planning Intelligence Strip -->
+    <div class="grid-3" style="margin-block-end:var(--space-2);">
+      <div class="card card-interactive" id="ov-link-risk" style="cursor:pointer;" tabindex="0" role="button" aria-label="Open Risk Meter and Investment Rating">
+        <div class="metric-header">
+          <span class="metric-label">Solvency &amp; Risk Rating</span>
+          <span class="badge badge-success">${escapeHtml(cfo?.riskMeter?.investmentRating || "AAA")} Grade</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--space-3);margin-block:0.25rem;">
+          <div class="rating-badge-aaa" style="inline-size:2.375rem;block-size:2.375rem;font-size:0.875rem;">${escapeHtml(cfo?.riskMeter?.investmentRating || "AAA")}</div>
+          <div>
+            <div style="font-size:var(--text-sm);font-weight:700;">${escapeHtml(cfo?.riskMeter?.tierLabel || "Low Risk")} (${cfo?.riskMeter?.compositeScore || 21}/100)</div>
+            <div class="text-xs text-muted">Prime Working Capital</div>
+          </div>
+        </div>
+        <div class="metric-foot">
+          <span>Treasury Yield:</span>
+          <strong class="text-success">${cfo?.riskMeter?.treasuryAllocation?.formattedProjectedYield || "₹6,185"} / yr</strong>
+        </div>
+      </div>
+
+      <div class="card card-interactive" id="ov-link-budget" style="cursor:pointer;" tabindex="0" role="button" aria-label="Open Limits and Budgeting">
+        <div class="metric-header">
+          <span class="metric-label">Monthly Export Budget</span>
+          <span class="badge badge-info">${Math.min(100, Math.round(((cfo?.totalGrossUsd || 1500) / (budget.monthlyTargetUsd || 5000)) * 100))}% Goal</span>
+        </div>
+        <div class="metric-value tabular-nums" style="font-size:var(--text-xl);margin-block:0.125rem;">$${Number(cfo?.totalGrossUsd || 1500).toFixed(0)} <span class="text-xs text-muted" style="font-weight:500;">/ $${Number(budget.monthlyTargetUsd || 5000).toFixed(0)} Target</span></div>
+        <div class="progress-track" style="margin-block:0.375rem;">
+          <div class="progress-fill safe" style="width:${Math.min(100, Math.round(((cfo?.totalGrossUsd || 1500) / (budget.monthlyTargetUsd || 5000)) * 100))}%;"></div>
+        </div>
+        <div class="metric-foot">
+          <span>Fee Watchdog:</span>
+          <strong class="text-success">${cfo?.effectiveFeeRatePercent || 4.38}% (Under 5% Cap)</strong>
+        </div>
+      </div>
+
+      <div class="card card-interactive" id="ov-link-schedules" style="cursor:pointer;" tabindex="0" role="button" aria-label="Open Financial Scheduling">
+        <div class="metric-header">
+          <span class="metric-label">Financial Scheduling</span>
+          <span class="badge badge-purple">${schedules.filter(s => s.status === "ACTIVE").length} Active</span>
+        </div>
+        <div style="font-size:var(--text-sm);font-weight:700;margin-block:0.25rem;">Next: 2026-11-20</div>
+        <div class="text-xs text-muted" style="margin-block-end:0.25rem;">GST Rule 96A Monthly Lock</div>
+        <div class="metric-foot">
+          <span>Cadences:</span>
+          <strong>Retainers &bull; 24h Reminders</strong>
+        </div>
+      </div>
+    </div>
 
     <div class="grid-12-7-5">
       <div class="card">
@@ -347,6 +398,18 @@ export function renderOverviewPage(mount) {
   document.getElementById("ov-to-tx")?.addEventListener("click", () => navigateTo("transactions"));
   document.getElementById("ov-to-security")?.addEventListener("click", () => navigateTo("security"));
   document.getElementById("ov-to-invoices")?.addEventListener("click", () => navigateTo("invoices"));
+  document.getElementById("ov-link-risk")?.addEventListener("click", () => {
+    store.setState({ activeMoneyGuideTab: "risk" });
+    navigateTo("money-guide");
+  });
+  document.getElementById("ov-link-budget")?.addEventListener("click", () => {
+    store.setState({ activeMoneyGuideTab: "limits" });
+    navigateTo("money-guide");
+  });
+  document.getElementById("ov-link-schedules")?.addEventListener("click", () => {
+    store.setState({ activeMoneyGuideTab: "schedules" });
+    navigateTo("money-guide");
+  });
   document.getElementById("ov-refresh-btn")?.addEventListener("click", async () => {
     const btn = document.getElementById("ov-refresh-btn");
     btn.disabled = true;

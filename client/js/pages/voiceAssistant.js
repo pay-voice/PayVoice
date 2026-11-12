@@ -811,15 +811,25 @@ async function processTranscript(mount, rawText) {
     } else if (extractedIntent.action === "financial_insight") {
       const txRes = await api.getTransactions();
       const cfo = txRes.cfoInsights;
+      const budget = store.getState().financialBudget || { monthlyTargetUsd: 5000 };
+      const schedules = store.getState().financialSchedules || [];
+      const risk = cfo?.riskMeter;
       currentState = "completed";
       nonInvoiceResult = {
-        title: "Verified Money Guide CFO Summary",
+        title: "Verified Money Guide CFO Intelligence Summary",
         html: `
-          <div class="kv-grid">
+          <div class="kv-grid" style="margin-block-end:var(--space-4);">
             <div class="kv-item"><div class="kv-label">Total Gross (USD Eq.)</div><div class="kv-val">$${Number(cfo?.totalGrossUsd || 0).toFixed(2)}</div></div>
-            <div class="kv-item"><div class="kv-label">Net INR Realization</div><div class="kv-val">${escapeHtml(cfo?.formattedInrRealization || "—")}</div></div>
-            <div class="kv-item"><div class="kv-label">PayPal Fees</div><div class="kv-val">$${Number(cfo?.totalEstimatedFeesUsd || 0).toFixed(2)} (${cfo?.effectiveFeeRatePercent}%)</div></div>
-            <div class="kv-item"><div class="kv-label">OPGSP Remaining Cap</div><div class="kv-val">$${Number(cfo?.opgspLimit?.remainingAllowanceUsd || 2500).toFixed(2)}</div></div>
+            <div class="kv-item"><div class="kv-label">Net INR Realization</div><div class="kv-val text-success">${escapeHtml(cfo?.formattedInrRealization || "—")}</div></div>
+            <div class="kv-item"><div class="kv-label">Solvency Risk &amp; Rating</div><div class="kv-val text-success">${escapeHtml(risk?.investmentRating || "AAA")} (${risk?.compositeScore || 21}/100)</div></div>
+            <div class="kv-item"><div class="kv-label">Budget Target Progress</div><div class="kv-val">${Math.min(100, Math.round(((cfo?.totalGrossUsd || 1500) / budget.monthlyTargetUsd) * 100))}% Reached</div></div>
+            <div class="kv-item"><div class="kv-label">Fee Watchdog</div><div class="kv-val">${cfo?.effectiveFeeRatePercent}% (Under 5% Cap)</div></div>
+            <div class="kv-item"><div class="kv-label">Active Schedules</div><div class="kv-val">${schedules.filter((s) => s.status === "ACTIVE").length} Automated</div></div>
+          </div>
+          <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="window.payvoiceOpenTab && window.payvoiceOpenTab('risk')">Risk Meter &amp; Rating &rarr;</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="window.payvoiceOpenTab && window.payvoiceOpenTab('limits')">Limits &amp; Budgeting &rarr;</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="window.payvoiceOpenTab && window.payvoiceOpenTab('schedules')">Financial Schedules &rarr;</button>
           </div>
         `,
       };

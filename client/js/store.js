@@ -1,6 +1,6 @@
 /**
  * PayVoice Reactive Client Store
- * Holds shared application state, preferences, notifications, and session artifacts.
+ * Holds shared application state, preferences, financial budgeting, schedules, and artifacts.
  */
 
 const PREFS_KEY = "payvoice_preferences_v1";
@@ -24,6 +24,57 @@ function savePrefs(prefs) {
 
 const savedPrefs = loadSavedPrefs();
 
+const DEFAULT_SCHEDULES = [
+  {
+    id: "SCHED-REC-01",
+    title: "Acme Corp Cloud Retainer",
+    type: "RECURRING_INVOICE",
+    typeLabel: "Recurring Retainer",
+    buyerName: "Rahul Mehta (Acme USA)",
+    buyerToken: "BUYER_RAHUL_01",
+    amount: 500.0,
+    currency: "USD",
+    cadence: "Monthly (1st)",
+    nextRun: "2026-12-01",
+    status: "ACTIVE", // ACTIVE | PAUSED
+    rbiPurposeCode: "P0802",
+  },
+  {
+    id: "SCHED-REM-02",
+    title: "24h Polite Unpaid Follow-Up Daemon",
+    type: "PAYMENT_REMINDER",
+    typeLabel: "Payment Reminder",
+    buyerName: "All Unpaid SENT Invoices",
+    buyerToken: "ALL_ELIGIBLE",
+    amount: null,
+    currency: null,
+    cadence: "Daily 09:00 UTC",
+    nextRun: "Tomorrow 09:00 UTC",
+    status: "ACTIVE",
+    cooldownHours: 24,
+  },
+  {
+    id: "SCHED-TAX-03",
+    title: "GST LUT Rule 96A Monthly Reconciliation",
+    type: "TAX_RESERVE_SET_ASIDE",
+    typeLabel: "Tax & Compliance",
+    buyerName: "DGFT / GST Electronic Ledger",
+    buyerToken: "DGFT_0319088821",
+    amount: 18500.0,
+    currency: "INR",
+    cadence: "Monthly (20th)",
+    nextRun: "2026-11-20",
+    status: "ACTIVE",
+  },
+];
+
+const DEFAULT_BUDGET = {
+  monthlyTargetUsd: 5000,
+  feeCapPercent: 5.0,
+  taxReservePercent: 15,
+  maxCurrencySharePercent: 65,
+};
+
 const initialState = {
   route: "overview",
   config: null,
@@ -32,6 +83,13 @@ const initialState = {
   autoReadBack: savedPrefs.autoReadBack !== undefined ? savedPrefs.autoReadBack : true,
   autoSettleDemo: savedPrefs.autoSettleDemo !== undefined ? savedPrefs.autoSettleDemo : true,
   sseConnected: false,
+
+  // Financial Planning & Intelligence
+  activeMoneyGuideTab: savedPrefs.activeMoneyGuideTab || "overview", // overview | limits | risk | schedules
+  financialBudget: savedPrefs.financialBudget || DEFAULT_BUDGET,
+  financialSchedules: Array.isArray(savedPrefs.financialSchedules) && savedPrefs.financialSchedules.length
+    ? savedPrefs.financialSchedules
+    : DEFAULT_SCHEDULES,
 
   // Backend-synced data
   transactions: [],
@@ -72,13 +130,16 @@ export const store = {
   setState(patch) {
     Object.assign(initialState, patch);
 
-    // Persist user preferences
+    // Persist user preferences & planning
     if (
       "language" in patch ||
       "theme" in patch ||
       "autoReadBack" in patch ||
       "autoSettleDemo" in patch ||
-      "passkeyEnrolledId" in patch
+      "passkeyEnrolledId" in patch ||
+      "financialBudget" in patch ||
+      "financialSchedules" in patch ||
+      "activeMoneyGuideTab" in patch
     ) {
       savePrefs({
         language: initialState.language,
@@ -86,6 +147,9 @@ export const store = {
         autoReadBack: initialState.autoReadBack,
         autoSettleDemo: initialState.autoSettleDemo,
         passkeyEnrolledId: initialState.passkeyEnrolledId,
+        financialBudget: initialState.financialBudget,
+        financialSchedules: initialState.financialSchedules,
+        activeMoneyGuideTab: initialState.activeMoneyGuideTab,
       });
     }
 
@@ -101,6 +165,38 @@ export const store = {
   subscribe(fn) {
     listeners.add(fn);
     return () => listeners.delete(fn);
+  },
+
+  toggleSchedule(scheduleId) {
+    const list = (initialState.financialSchedules || []).map((s) => {
+      if (s.id === scheduleId) {
+        return { ...s, status: s.status === "ACTIVE" ? "PAUSED" : "ACTIVE" };
+      }
+      return s;
+    });
+    this.setState({ financialSchedules: list });
+    return list.find((s) => s.id === scheduleId);
+  },
+
+  addSchedule(schedule) {
+    const id = `SCHED-USR-${Date.now().toString().slice(-4)}`;
+    const newSchedule = {
+      id,
+      status: "ACTIVE",
+      ...schedule,
+    };
+    const list = [newSchedule, ...(initialState.financialSchedules || [])];
+    this.setState({ financialSchedules: list });
+    return newSchedule;
+  },
+
+  updateBudget(budgetPatch) {
+    const updated = {
+      ...initialState.financialBudget,
+      ...budgetPatch,
+    };
+    this.setState({ financialBudget: updated });
+    return updated;
   },
 
   addNotification({ title, message, severity = "info" }) {
@@ -123,4 +219,3 @@ export const store = {
     });
   },
 };
-

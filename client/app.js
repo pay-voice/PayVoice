@@ -31,6 +31,12 @@ registerPage("buyers", renderBuyersPage);
 registerPage("security", renderSecurityAuditPage);
 registerPage("settings", renderSettingsPage);
 
+// Helper for deep-linking into Money Guide financial planning tabs
+window.payvoiceOpenTab = (tab) => {
+  store.setState({ activeMoneyGuideTab: tab });
+  navigateTo("money-guide");
+};
+
 function updateThemeIcons() {
   const resolved = getResolvedTheme();
   const sun = document.getElementById("theme-icon-sun");

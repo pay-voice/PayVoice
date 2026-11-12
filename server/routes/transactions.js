@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { paypalTools } from "../config/paypal.js";
-import { computeTransactionTotals, computeCfoInsights } from "../services/moneyGuide.js";
+import {
+  computeTransactionTotals,
+  computeCfoInsights,
+  computeRiskAndInvestmentRating,
+  computeBudgetingAndLimits,
+} from "../services/moneyGuide.js";
 
 const router = Router();
 
@@ -13,8 +18,8 @@ const DEFAULT_SANDBOX_TRANSACTIONS = [
     buyerName: "Rahul Mehta",
     item: "Cloud API Development (Milestone 1)",
     grossAmount: 200.0,
-    fee: 9.10,
-    netAmount: 190.90,
+    fee: 9.1,
+    netAmount: 190.9,
     currency: "USD",
     status: "COMPLETED",
   },
@@ -26,8 +31,8 @@ const DEFAULT_SANDBOX_TRANSACTIONS = [
     buyerName: "Elena Rostova",
     item: "UI/UX Design Sprint (40 Hours)",
     grossAmount: 450.0,
-    fee: 20.10,
-    netAmount: 429.90,
+    fee: 20.1,
+    netAmount: 429.9,
     currency: "EUR",
     status: "COMPLETED",
   },
@@ -39,8 +44,8 @@ const DEFAULT_SANDBOX_TRANSACTIONS = [
     buyerName: "Oliver Grant",
     item: "Security Penetration Audit",
     grossAmount: 350.0,
-    fee: 15.70,
-    netAmount: 334.30,
+    fee: 15.7,
+    netAmount: 334.3,
     currency: "GBP",
     status: "COMPLETED",
   },
@@ -52,8 +57,8 @@ const DEFAULT_SANDBOX_TRANSACTIONS = [
     buyerName: "Akira Sato",
     item: "Embedded Firmware Module (2 Units)",
     grossAmount: 500.0,
-    fee: 22.30,
-    netAmount: 477.70,
+    fee: 22.3,
+    netAmount: 477.7,
     currency: "USD",
     status: "COMPLETED",
   },
@@ -61,7 +66,7 @@ const DEFAULT_SANDBOX_TRANSACTIONS = [
 
 /**
  * GET /api/transactions
- * Retrieve recent export transactions & CFO insights
+ * Retrieve recent export transactions, CFO insights, risk ratings & budget telemetry
  */
 router.get("/", async (req, res) => {
   try {
@@ -103,6 +108,38 @@ router.get("/cfo-insights", (req, res) => {
     res.json({
       success: true,
       cfoInsights: insights,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/transactions/risk-rating
+ * Retrieve real-time risk score, composite breakdown & institutional working capital rating
+ */
+router.get("/risk-rating", (req, res) => {
+  try {
+    const risk = computeRiskAndInvestmentRating(DEFAULT_SANDBOX_TRANSACTIONS);
+    res.json({
+      success: true,
+      riskMeter: risk,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/transactions/budgeting
+ * Retrieve limits, monthly targets and currency exposure thresholds
+ */
+router.get("/budgeting", (req, res) => {
+  try {
+    const budget = computeBudgetingAndLimits(DEFAULT_SANDBOX_TRANSACTIONS, req.query || {});
+    res.json({
+      success: true,
+      budgeting: budget,
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

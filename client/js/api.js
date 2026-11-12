@@ -141,6 +141,11 @@ export const api = {
   getTransactions: () => apiRequest("/api/transactions"),
   getCfoInsights: () => apiRequest("/api/transactions/cfo-insights"),
   getMerchantInsights: () => apiRequest("/api/transactions/insights"),
+  getRiskRating: () => apiRequest("/api/transactions/risk-rating"),
+  getBudgeting: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return apiRequest(`/api/transactions/budgeting${qs ? `?${qs}` : ""}`);
+  },
 
   // Buyers Vault
   getBuyers: () => apiRequest("/api/vault/buyers"),
@@ -247,4 +252,3 @@ export const api = {
     return es;
   },
 };
-
