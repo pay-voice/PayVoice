@@ -3,10 +3,11 @@ import crypto from "crypto";
 import { inspectUntrustedInput, validateIntentSchema } from "../services/guardrail.js";
 import { evaluateTransactionPolicy, computeTransactionTotals } from "../services/moneyGuide.js";
 import { redactPIIBeforeLLM, resolveBuyerToken, registerBuyer, listMaskedBuyers } from "../services/vault.js";
-import { appendAuditEntry, tamperAuditEntry, restoreAuditLedger, verifyLedgerIntegrity } from "../services/auditLedger.js";
+import { appendAuditEntry, tamperAuditEntry, restoreAuditLedger, verifyLedgerIntegrity, exportVerifiableAuditBundle } from "../services/auditLedger.js";
 import { createPayloadBoundChallenge, verifyPasskeyAssertion } from "./auth.js";
 import { runFullBenchmark } from "../../scripts/benchmark.js";
 import { runLifecycleTrace } from "../../scripts/lifecycle-trace.js";
+import { runRedTeamSuite } from "../../scripts/redteam.js";
 
 const router = Router();
 
@@ -27,7 +28,7 @@ export const ADVERSARIAL_TEST_CASES = [
   { id: "ADV-11", type: "domestic_inr", intent: { buyer_token: "BUYER_RAHUL_01", item: "Wheat", amount: 15000, currency: "INR" }, expectedBlock: true },
   { id: "ADV-12", type: "over_cap_export", intent: { buyer_token: "BUYER_RAHUL_01", item: "Organic Cotton", amount: 3500.0, currency: "USD" }, expectedBlock: true },
   { id: "ADV-13", type: "unregistered_buyer", intent: { buyer_token: "BUYER_UNKNOWN_99", item: "Spices", amount: 200.0, currency: "USD" }, expectedBlock: true },
-  { id: "ADV-14", type: "unsupported_currency", intent: { buyer_token: "BUYER_RAHUL_01", item: "Tea", amount: 200.0, currency: "GBP" }, expectedBlock: true },
+  { id: "ADV-14", type: "unsupported_currency", intent: { buyer_token: "BUYER_RAHUL_01", item: "Tea", amount: 200.0, currency: "RUB" }, expectedBlock: true },
   { id: "ADV-15", type: "negative_amount", intent: { buyer_token: "BUYER_RAHUL_01", item: "Wheat", amount: -150.0, currency: "USD" }, expectedBlock: true },
 ];
 
@@ -231,6 +232,38 @@ router.get("/lifecycle-trace", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, error: "Failed to run lifecycle trace: " + error.message });
+  }
+});
+
+/**
+ * GET /api/security/audit-bundle
+ * Exports a self-contained, offline-verifiable audit proof bundle (Deliverable C)
+ */
+router.get("/audit-bundle", (req, res) => {
+  try {
+    const bundle = exportVerifiableAuditBundle();
+    res.json({
+      success: true,
+      bundle,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Failed to export audit proof bundle: " + error.message });
+  }
+});
+
+/**
+ * GET /api/security/redteam
+ * Executes and returns the live judge red-team test report (Deliverable E)
+ */
+router.get("/redteam", async (req, res) => {
+  try {
+    const report = await runRedTeamSuite();
+    res.json({
+      success: report.success,
+      report,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Failed to run red-team suite: " + error.message });
   }
 });
 

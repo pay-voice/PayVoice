@@ -1,3 +1,6 @@
+import crypto from "crypto";
+import { appendAuditEntry } from "./auditLedger.js";
+
 /**
  * PayVoice Prompt-Injection & Schema Firewall
  * Treats all voice transcripts, item descriptions, and external invoice memos as untrusted inputs.
@@ -11,6 +14,9 @@ const ADVERSARIAL_PATTERNS = [
   { regex: /send\s+(\$|usd\s*|eur\s*)?[5-9][0-9]{3,}/i, label: "unauthorized_high_value_force" },
   { regex: /\b(system\s*admin|sudo\s+execute|format\s+drive|api_key|client_secret)\b/i, label: "system_privilege_escalation" },
   { regex: /\b(refund\s+all|transfer\s+all|drain\s+wallet)\b/i, label: "fraudulent_drain_pattern" },
+  { regex: /refund\s+(this|the|all|my)?\s*(invoice|payment|transaction|funds|order)/i, label: "unauthorized_refund_request" },
+  { regex: /(change|swap|switch|update|replace)\s+(the\s+)?(recipient|payee|beneficiary|destination|email|bank|account)\s+to/i, label: "recipient_swap_attack" },
+  { regex: /(send|redirect|transfer|route|pay)\s+(the\s+)?(funds|money|amount|payout|proceeds)\s+to/i, label: "fund_redirection_attack" },
 ];
 
 const RAW_EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
@@ -255,5 +261,121 @@ export function sanitizeAndValidateCsvLedger(csvInput) {
     safe: true,
     sanitizedRows,
     totalRows: sanitizedRows.length,
+  };
+}
+
+// Bounded sliding nonce / audio hash cache for recorded audio replay defense
+// Note: Single-process in-memory cache is bounded to 5,000 entries. In multi-instance
+// production deployment, a distributed atomic store (e.g., Redis / Spanner) is required.
+const seenAudioHashes = new Map(); // hash -> timestampMs
+const MAX_AUDIO_AGE_MS = 60 * 1000; // 60 seconds
+const CLOCK_SKEW_TOLERANCE_MS = 5 * 1000; // 5 seconds
+const MAX_CACHE_SIZE = 5000;
+
+function cleanExpiredAudioHashes() {
+  const now = Date.now();
+  for (const [h, ts] of seenAudioHashes.entries()) {
+    if (now - ts > MAX_AUDIO_AGE_MS) {
+      seenAudioHashes.delete(h);
+    }
+  }
+}
+
+export function clearAudioReplayCacheForTesting() {
+  seenAudioHashes.clear();
+}
+
+/**
+ * Recorded Audio Replay Defense
+ * Verifies that a voice capture is fresh, has not been replayed, and falls within
+ * the acceptable clock-skew window. Prefers raw audio byte SHA-256 hashes.
+ *
+ * @param {string | Buffer} audioBufferHashOrTranscript - Audio bytes buffer, SHA-256 hex, or raw transcript
+ * @param {number | string} timestampMs - Timestamp of audio capture
+ * @returns {{ safe: boolean, reason?: string, audioHash?: string }}
+ */
+export function verifyAudioReplayGuard(audioBufferHashOrTranscript, timestampMs = Date.now()) {
+  cleanExpiredAudioHashes();
+
+  if (!audioBufferHashOrTranscript) {
+    return { safe: false, reason: "Missing audio capture input for replay verification" };
+  }
+
+  let audioHash = "";
+  if (Buffer.isBuffer(audioBufferHashOrTranscript)) {
+    audioHash = crypto.createHash("sha256").update(audioBufferHashOrTranscript).digest("hex");
+  } else if (typeof audioBufferHashOrTranscript === "string") {
+    if (/^[a-f0-9]{64}$/i.test(audioBufferHashOrTranscript.trim())) {
+      audioHash = audioBufferHashOrTranscript.trim().toLowerCase();
+    } else {
+      audioHash = crypto.createHash("sha256").update(audioBufferHashOrTranscript.trim()).digest("hex");
+    }
+  } else {
+    return { safe: false, reason: "Invalid audio buffer or transcript type" };
+  }
+
+  const now = Date.now();
+  const captureTime = Number(timestampMs);
+
+  if (isNaN(captureTime)) {
+    return { safe: false, reason: "Invalid audio capture timestamp format" };
+  }
+
+  // Reject future timestamps outside clock-skew tolerance
+  if (captureTime > now + CLOCK_SKEW_TOLERANCE_MS) {
+    appendAuditEntry({
+      transcript: "[AUDIO REPLAY DEFENSE] Clock skew anomaly detected",
+      stagedPayload: { audioHash, captureTime, now },
+      passkeyAssertionId: "REPLAY_GUARD_CLOCK_SKEW",
+      status: "BLOCKED_AUDIO_REPLAY",
+      metadata: { violation: "FUTURE_TIMESTAMP", clockSkewMs: captureTime - now },
+    });
+    return {
+      safe: false,
+      reason: `Audio capture timestamp is in the future (+${captureTime - now}ms). Clock skew exceeds tolerance (${CLOCK_SKEW_TOLERANCE_MS}ms).`,
+    };
+  }
+
+  // Reject stale voice captures older than 60 seconds
+  if (now - captureTime > MAX_AUDIO_AGE_MS) {
+    appendAuditEntry({
+      transcript: "[AUDIO REPLAY DEFENSE] Stale audio capture detected",
+      stagedPayload: { audioHash, ageMs: now - captureTime },
+      passkeyAssertionId: "REPLAY_GUARD_STALE",
+      status: "BLOCKED_AUDIO_REPLAY",
+      metadata: { violation: "STALE_AUDIO_CAPTURE", ageMs: now - captureTime },
+    });
+    return {
+      safe: false,
+      reason: `Voice capture expired: Audio was captured ${Math.round((now - captureTime) / 1000)}s ago (max allowed freshness: ${MAX_AUDIO_AGE_MS / 1000}s).`,
+    };
+  }
+
+  // Check if hash already seen (recorded replay)
+  if (seenAudioHashes.has(audioHash)) {
+    appendAuditEntry({
+      transcript: "[AUDIO REPLAY DEFENSE] Repeated audio capture replay detected",
+      stagedPayload: { audioHash },
+      passkeyAssertionId: "REPLAY_GUARD_DUPLICATE",
+      status: "BLOCKED_AUDIO_REPLAY",
+      metadata: { violation: "REPEATED_AUDIO_RECORDING", firstSeenAt: new Date(seenAudioHashes.get(audioHash)).toISOString() },
+    });
+    return {
+      safe: false,
+      reason: `Recorded audio replay attack detected: This exact voice capture (hash: ${audioHash.slice(0, 16)}...) was already consumed.`,
+    };
+  }
+
+  if (seenAudioHashes.size >= MAX_CACHE_SIZE) {
+    const oldestKey = seenAudioHashes.keys().next().value;
+    seenAudioHashes.delete(oldestKey);
+  }
+
+  seenAudioHashes.set(audioHash, now);
+
+  return {
+    safe: true,
+    audioHash,
+    verifiedAt: new Date(now).toISOString(),
   };
 }

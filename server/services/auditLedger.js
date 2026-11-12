@@ -405,3 +405,147 @@ export function restoreAuditLedger() {
     message: "No active tampering state found. Ledger is already in original state.",
   };
 }
+
+/**
+ * Export a self-contained, offline-verifiable audit bundle for independent judge verification
+ *
+ * @returns {object} Standalone verifiable bundle
+ */
+export function exportVerifiableAuditBundle() {
+  const chainIntegrity = verifyLedgerIntegrity();
+  const checkpoints = loadCheckpoints();
+
+  // Create sanitized events list (redacting raw PII from transcripts/metadata)
+  const sanitizedEvents = auditLedger.map((b) => ({
+    index: b.index,
+    timestamp: b.timestamp,
+    prevHash: b.prevHash,
+    transcriptHash: b.transcriptHash,
+    stagedPayloadHash: b.stagedPayloadHash,
+    passkeyAssertionId: b.passkeyAssertionId,
+    invoiceId: b.invoiceId,
+    status: b.status,
+    rowHash: b.rowHash,
+    metadataSummary: b.metadata ? Object.keys(b.metadata) : [],
+  }));
+
+  const bundle = {
+    schemaVersion: "payvoice-audit-bundle-v1",
+    exportedAt: new Date().toISOString(),
+    network: "PayPal Sandbox / India MSME Export Corridor",
+    genesisHash: GENESIS_HASH,
+    totalRecords: auditLedger.length,
+    tipHash: auditLedger[auditLedger.length - 1]?.rowHash || GENESIS_HASH,
+    chainIntegrity: {
+      valid: chainIntegrity.valid,
+      totalVerified: chainIntegrity.totalRecords,
+      error: chainIntegrity.error || null,
+      brokenIndex: chainIntegrity.brokenIndex !== undefined ? chainIntegrity.brokenIndex : null,
+    },
+    checkpoints: checkpoints.map((cp) => ({
+      checkpointId: cp.checkpointId,
+      entryCount: cp.entryCount,
+      tipHash: cp.tipHash,
+      merkleRoot: cp.merkleRoot,
+      triggerReason: cp.triggerReason,
+      timestamp: cp.timestamp,
+      hmacSignature: cp.hmacSignature,
+    })),
+    events: sanitizedEvents,
+    standaloneVerificationScript: `
+// Standalone offline Node.js verification script:
+const crypto = require("crypto");
+function sha256(s) { return crypto.createHash("sha256").update(String(s)).digest("hex"); }
+function verifyBundle(b) {
+  if (b.events[0].rowHash !== "0000000000000000000000000000000000000000000000000000000000000000") return false;
+  for (let i = 1; i < b.events.length; i++) {
+    const cur = b.events[i], prev = b.events[i-1];
+    if (cur.prevHash !== prev.rowHash) return false;
+    const pre = cur.prevHash + "|" + cur.transcriptHash + "|" + cur.stagedPayloadHash + "|" + cur.passkeyAssertionId + "|" + cur.status + "|" + cur.timestamp;
+    if (cur.rowHash !== sha256(pre)) return false;
+  }
+  return true;
+}
+console.log("Audit Chain Verified:", verifyBundle(bundle));
+`,
+  };
+
+  return bundle;
+}
+
+/**
+ * Offline standalone verifier function
+ *
+ * @param {object} bundle
+ * @returns {{ valid: boolean, recordsVerified: number, reason?: string }}
+ */
+export function verifyAuditBundleOffline(bundle) {
+  if (!bundle || bundle.schemaVersion !== "payvoice-audit-bundle-v1" || !Array.isArray(bundle.events)) {
+    return { valid: false, recordsVerified: 0, reason: "Malformed or unsupported audit bundle schema" };
+  }
+
+  const events = bundle.events;
+  if (events.length === 0) {
+    return { valid: false, recordsVerified: 0, reason: "Empty events list in bundle" };
+  }
+
+  if (events[0].rowHash !== GENESIS_HASH) {
+    return { valid: false, recordsVerified: 0, reason: "Genesis row hash compromised" };
+  }
+
+  for (let i = 1; i < events.length; i++) {
+    const cur = events[i];
+    const prev = events[i - 1];
+
+    if (cur.prevHash !== prev.rowHash) {
+      return {
+        valid: false,
+        recordsVerified: i,
+        reason: `Broken chain link at index ${i}: prevHash '${cur.prevHash}' !== '${prev.rowHash}'`,
+      };
+    }
+
+    const preimage = `${cur.prevHash}|${cur.transcriptHash}|${cur.stagedPayloadHash}|${cur.passkeyAssertionId}|${cur.status}|${cur.timestamp}`;
+    const expected = sha256(preimage);
+
+    if (cur.rowHash !== expected) {
+      return {
+        valid: false,
+        recordsVerified: i,
+        reason: `Tampering at index ${i}: rowHash '${cur.rowHash}' !== computed digest '${expected}'`,
+      };
+    }
+  }
+
+  // Cross-verify checkpoint Merkle roots if checkpoints present
+  if (Array.isArray(bundle.checkpoints)) {
+    for (const cp of bundle.checkpoints) {
+      if (events.length >= cp.entryCount) {
+        const slice = events.slice(0, cp.entryCount);
+        const recordedTip = slice[slice.length - 1].rowHash;
+        if (recordedTip !== cp.tipHash) {
+          return {
+            valid: false,
+            recordsVerified: events.length,
+            reason: `Checkpoint '${cp.checkpointId}' tip hash mismatch: '${recordedTip}' !== '${cp.tipHash}'`,
+          };
+        }
+        const combinedHashes = slice.map((b) => b.rowHash).join(":");
+        const calculatedRoot = sha256(combinedHashes);
+        if (calculatedRoot !== cp.merkleRoot) {
+          return {
+            valid: false,
+            recordsVerified: events.length,
+            reason: `Checkpoint '${cp.checkpointId}' Merkle root mismatch`,
+          };
+        }
+      }
+    }
+  }
+
+  return {
+    valid: true,
+    recordsVerified: events.length,
+    tipHash: events[events.length - 1].rowHash,
+  };
+}

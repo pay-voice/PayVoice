@@ -8,7 +8,9 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "benchmark": "node scripts/benchmark.js",
-    "trace": "node scripts/lifecycle-trace.js"
+    "trace": "node scripts/lifecycle-trace.js",
+    "redteam": "node scripts/redteam.js",
+    "security:doctor": "node scripts/security-doctor.js"
   },
   "dependencies": {
     "@paypal/agent-toolkit": "^1.11.0",

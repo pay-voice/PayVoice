@@ -11,6 +11,7 @@
  *   6. Hash-Chained Audit Ledger + Independent Checkpoint Cross-Verification
  */
 
+import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import { ADVERSARIAL_TEST_CASES } from "../server/routes/security.js";
@@ -18,12 +19,17 @@ import {
   inspectUntrustedInput,
   validateIntentSchema,
   sanitizeAndValidateCsvLedger,
+  verifyAudioReplayGuard,
 } from "../server/services/guardrail.js";
 import {
   evaluateTransactionPolicy,
   computeTransactionTotals,
   analyzeMerchantAnomalies,
   classifyRbiPurposeCode,
+  STATIC_FX_RATES_V1,
+  normalizeToUsd,
+  computeReadBackDigest,
+  verifyReadBackConfirmation,
 } from "../server/services/moneyGuide.js";
 import {
   redactPIIBeforeLLM,
@@ -31,6 +37,10 @@ import {
   resolveBuyerForExecution,
   registerBuyer,
   computeBlindIndex,
+  encryptAes256Siv,
+  decryptAes256Siv,
+  encryptAes256Gcm,
+  decryptAes256Gcm,
 } from "../server/services/vault.js";
 import {
   appendAuditEntry,
@@ -40,7 +50,11 @@ import {
   restoreAuditLedger,
   resetAuditLedger,
 } from "../server/services/auditLedger.js";
-import { createPayloadBoundChallenge, verifyPasskeyAssertion } from "../server/routes/auth.js";
+import {
+  createPayloadBoundChallenge,
+  verifyPasskeyAssertion,
+  verifyTemporalLivenessProof,
+} from "../server/routes/auth.js";
 import { generateEncryptedStatementPdf, reconcilePdfTotalsWithRawJson } from "../server/services/pdfGenerator.js";
 import {
   wrapPayPalToolkitWithSecurityGate,
@@ -447,6 +461,139 @@ export async function runFullBenchmark() {
     time: `${Date.now() - csvStart}ms`,
   });
 
+  // Suite 10: 25-Currency FX Cap, AES-256-SIV & Audio/Temporal Liveness Gate
+  const sub10Start = Date.now();
+
+  // 1. AES-256-SIV encryption/decryption round trip
+  const key64 = crypto.randomBytes(64);
+  const sivCt = encryptAes256Siv("Sensitive Buyer PAN: AABCP1234M", ["buyer_id_01"], key64);
+  const sivPt = decryptAes256Siv(sivCt, ["buyer_id_01"], key64);
+  const a1_sivRoundtrip = sivPt.toString("utf8") === "Sensitive Buyer PAN: AABCP1234M";
+
+  // 2. AES-256-SIV wrong-key rejection
+  let a2_sivWrongKey = false;
+  try {
+    decryptAes256Siv(sivCt, ["buyer_id_01"], crypto.randomBytes(64));
+  } catch {
+    a2_sivWrongKey = true;
+  }
+
+  // 3. AES-256-SIV associated-data tampering rejection
+  let a3_sivAdTamper = false;
+  try {
+    decryptAes256Siv(sivCt, ["tampered_ad_vector"], key64);
+  } catch {
+    a3_sivAdTamper = true;
+  }
+
+  // 4. AES-256-GCM encryption/decryption
+  const key32 = crypto.randomBytes(32);
+  const gcmObj = encryptAes256Gcm("Secret Tax Identifier", "metadata_v1", key32);
+  const gcmPt = decryptAes256Gcm(gcmObj, "metadata_v1", key32);
+  const a4_gcmRoundtrip = gcmPt.toString("utf8") === "Secret Tax Identifier";
+
+  // 5. GCM authentication failure
+  let a5_gcmAuthFail = false;
+  try {
+    decryptAes256Gcm({ ...gcmObj, authTag: crypto.randomBytes(16).toString("hex") }, "metadata_v1", key32);
+  } catch {
+    a5_gcmAuthFail = true;
+  }
+
+  // 6. At least 25 supported currencies
+  const currCount = Object.keys(STATIC_FX_RATES_V1).length;
+  const a6_currencies25 = currCount >= 25;
+
+  // 7. INR rejection
+  const inrRes = evaluateTransactionPolicy(
+    { buyer_token: "BUYER_RAHUL_01", amount: 15000, currency: "INR" },
+    { bypassIdempotency: true }
+  );
+  const a7_inrRejected = inrRes.approved === false && inrRes.policyViolation === "DOMESTIC_INR_NOT_SUPPORTED";
+
+  // 8. USD cap boundary ($2,500 allowed, $2,500.01 rejected)
+  const usd2500 = evaluateTransactionPolicy(
+    { buyer_token: "BUYER_RAHUL_01", amount: 2500.0, currency: "USD" },
+    { bypassIdempotency: true }
+  );
+  const usd2501 = evaluateTransactionPolicy(
+    { buyer_token: "BUYER_RAHUL_01", amount: 2500.01, currency: "USD" },
+    { bypassIdempotency: true }
+  );
+  const a8_usdBoundary = usd2500.approved === true && usd2501.approved === false;
+
+  // 9. Foreign currency cap boundary (2,314.81 EUR allowed, 2,315.00 EUR rejected)
+  const eurOk = evaluateTransactionPolicy(
+    { buyer_token: "BUYER_RAHUL_01", amount: 2314.81, currency: "EUR" },
+    { bypassIdempotency: true }
+  );
+  const eurOver = evaluateTransactionPolicy(
+    { buyer_token: "BUYER_RAHUL_01", amount: 2315.0, currency: "EUR" },
+    { bypassIdempotency: true }
+  );
+  const a9_foreignBoundary = eurOk.approved === true && eurOver.approved === false;
+
+  // 10. Audio replay detection
+  const aHash = `test_audio_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  const a1 = verifyAudioReplayGuard(aHash, Date.now());
+  const a2 = verifyAudioReplayGuard(aHash, Date.now());
+  const a10_audioReplay = a1.safe === true && a2.safe === false;
+
+  // 11. Stale audio rejection (> 60s)
+  const aStale = verifyAudioReplayGuard(`stale_${Date.now()}`, Date.now() - 70000);
+  const a11_staleAudio = aStale.safe === false;
+
+  // 12. Spatial luminance variance (variance <= 5.0 rejected as black/covered)
+  const vLow = verifyTemporalLivenessProof({ variance: 2.0, motionDelta: 10.0, durationMs: 150 });
+  const a12_spatialVariance = vLow.verified === false;
+
+  // 13. Temporal motion threshold (motionDelta <= 0.2 rejected, motionDelta >= 85.0 rejected, human accepted)
+  const mStatic = verifyTemporalLivenessProof({ variance: 10.0, motionDelta: 0.1, durationMs: 150 });
+  const mStrobe = verifyTemporalLivenessProof({ variance: 10.0, motionDelta: 90.0, durationMs: 150 });
+  const mHuman = verifyTemporalLivenessProof({ variance: 10.0, motionDelta: 12.0, durationMs: 150 });
+  const a13_temporalMotion = mStatic.verified === false && mStrobe.verified === false && mHuman.verified === true;
+
+  // 14. Read-back digest validation
+  const staged = { buyer_token: "BUYER_RAHUL_01", amount: 200, currency: "USD", item: "Wheat" };
+  const rbDigest = computeReadBackDigest(staged, "en");
+  const rbOk = verifyReadBackConfirmation({ stagedInvoice: staged, language: "en", confirmationDigest: rbDigest });
+  const a14_readBackValid = rbOk.valid === true;
+
+  // 15. Tampered confirmation rejection
+  const rbTampered = verifyReadBackConfirmation({
+    stagedInvoice: { ...staged, amount: 201 },
+    language: "en",
+    confirmationDigest: rbDigest,
+  });
+  const a15_tamperedRejected = rbTampered.valid === false;
+
+  const sub10Passed =
+    a1_sivRoundtrip &&
+    a2_sivWrongKey &&
+    a3_sivAdTamper &&
+    a4_gcmRoundtrip &&
+    a5_gcmAuthFail &&
+    a6_currencies25 &&
+    a7_inrRejected &&
+    a8_usdBoundary &&
+    a9_foreignBoundary &&
+    a10_audioReplay &&
+    a11_staleAudio &&
+    a12_spatialVariance &&
+    a13_temporalMotion &&
+    a14_readBackValid &&
+    a15_tamperedRejected;
+
+  summaryRows.push({
+    num: 10,
+    subsystem: "FX Cap, SIV & Liveness Gate",
+    assertion: "25-FX Cap, RFC 5297 & Liveness",
+    target: "15/15 Verifications PASS",
+    actual: sub10Passed ? "15/15 Passed (SIV+GCM+25FX+Live)" : "Subsystem 10 Assertion Failure",
+    status: sub10Passed ? "PASS" : "FAIL",
+    time: `${Date.now() - sub10Start}ms`,
+  });
+
   // Print Formatted Summary Table matching deck
   console.log("┌────┬─────────────────────────────┬────────────────────────────────────┬──────────────────────┬────────┬──────────┐");
   console.log("│ #  │ Subsystem / Component       │ Security & Compliance Assertion    │ Target Benchmark     │ Status │ Latency  │");
@@ -468,9 +615,9 @@ export async function runFullBenchmark() {
   const totalTests = summaryRows.length;
   const totalElapsed = Date.now() - t0;
 
-  console.log(`\n🎯 PHASE 3 FINAL BENCHMARK SUMMARY: ${totalPassed}/${totalTests} Subsystems Passed in ${totalElapsed}ms`);
+  console.log(`\n🎯 PHASE 4 FINAL BENCHMARK SUMMARY: ${totalPassed}/${totalTests} Subsystems Passed in ${totalElapsed}ms`);
   if (totalPassed === totalTests) {
-    console.log("✅ ALL PAYVOICE PHASE 3 SECURITY GATES, TOOLKIT PROXY, WEBAUTHN BINDING, AND COMPLIANCE RULES VERIFIED!\n");
+    console.log("✅ ALL PAYVOICE PHASE 4 SECURITY GATES, RFC 5297 SIV, 25-CURRENCY CAP, AND TEMPORAL LIVENESS RULES VERIFIED!\n");
     return { passed: true, summaryRows };
   } else {
     console.error("❌ Some benchmark assertions failed.\n");

@@ -67,6 +67,67 @@ export function createPayloadBoundChallenge(stagedPayload, options = {}) {
 }
 
 /**
+ * Server-side independent validation of the two-frame temporal camera presence proof
+ * Never trusts client-reported isLive / valid flag. Re-evaluates variance, motion delta, and freshness.
+ *
+ * @param {object} cameraProof - The camera presence proof object
+ * @param {object} [options={}] - { maxAgeMs: number }
+ * @returns {{ verified: boolean, reason?: string, variance?: number, motionDelta?: number }}
+ */
+export function verifyTemporalLivenessProof(cameraProof, options = {}) {
+  if (!cameraProof || typeof cameraProof !== "object") {
+    return { verified: false, reason: "Missing or malformed camera presence proof payload" };
+  }
+
+  const { variance, motionDelta, capturedAt } = cameraProof;
+
+  // 1. Freshness check
+  const now = Date.now();
+  const maxAgeMs = options.maxAgeMs || 60 * 1000; // 60s
+  if (capturedAt) {
+    const capTime = new Date(capturedAt).getTime();
+    if (!isNaN(capTime) && (now - capTime > maxAgeMs || capTime > now + 5000)) {
+      return { verified: false, reason: `Camera presence proof expired or invalid timestamp (${Math.round((now - capTime) / 1000)}s old)` };
+    }
+  }
+
+  // 2. Spatial luminance variance check (> 5.0)
+  const numVariance = Number(variance);
+  if (isNaN(numVariance) || numVariance <= 5.0) {
+    return {
+      verified: false,
+      reason: `Spatial luminance variance (${isNaN(numVariance) ? "NaN" : numVariance.toFixed(2)}) is below threshold 5.0 (covered, black, or uniform camera feed)`,
+      variance: numVariance,
+    };
+  }
+
+  // 3. Temporal pixel motion delta check (0.2 < delta < 85.0)
+  const numMotion = Number(motionDelta !== undefined ? motionDelta : (cameraProof.temporalMotionDelta || 0));
+  if (isNaN(numMotion) || numMotion <= 0.2) {
+    return {
+      verified: false,
+      reason: `Static printed photo spoof detected: Temporal motion delta (${isNaN(numMotion) ? "NaN" : numMotion.toFixed(2)}) is below 0.2 (no natural micro-movements detected)`,
+      motionDelta: numMotion,
+    };
+  }
+
+  if (numMotion >= 85.0) {
+    return {
+      verified: false,
+      reason: `Excessive temporal pixel motion delta (${numMotion.toFixed(2)}) exceeds 85.0 (feed instability, video cut, or strobe attack)`,
+      motionDelta: numMotion,
+    };
+  }
+
+  return {
+    verified: true,
+    variance: numVariance,
+    motionDelta: numMotion,
+    verifiedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * Verify a single-use WebAuthn assertion against the bound payload hash
  * Verifies challenge match, origin, rpId, UV flag, and optional camera presence proof.
  *
@@ -146,24 +207,14 @@ export function verifyPasskeyAssertion({
     }
   }
 
-  // 3. Optional Camera Liveness Check (3-Way Gateway)
+  // 3. Optional Two-Frame Temporal Camera Liveness Check (3-Way Gateway)
   if (requireCameraLiveness === true) {
-    if (!cameraProof) {
-      activeChallenges.delete(challengeId);
-      return { verified: false, reason: "Camera presence proof required but missing from request" };
-    }
-
-    if (cameraProof.valid !== true) {
-      activeChallenges.delete(challengeId);
-      return { verified: false, reason: "Camera presence check failed: Optical variance not verified" };
-    }
-
-    const variance = Number(cameraProof.variance || 0);
-    if (variance <= 5.0) {
+    const livenessResult = verifyTemporalLivenessProof(cameraProof);
+    if (!livenessResult.verified) {
       activeChallenges.delete(challengeId);
       return {
         verified: false,
-        reason: `Camera presence rejected: Optical variance (${variance.toFixed(2)}) is below threshold 5.0 (covered/blank feed)`,
+        reason: `Camera presence verification rejected: ${livenessResult.reason}`,
       };
     }
   }

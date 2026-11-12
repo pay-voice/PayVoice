@@ -75,6 +75,75 @@ export function classifyRbiPurposeCode(itemDescription = "", merchantIec = null)
 }
 
 /**
+ * Deterministic Static Foreign Exchange (FX) Reference Table (25 Supported International Currencies)
+ * NOTE: These are deterministic reference rates for testing & regulatory cap normalization,
+ * not live fluctuating market rates. All amounts are normalized using integer minor-unit arithmetic.
+ */
+export const STATIC_FX_RATES_V1 = {
+  USD: { rateToUsd: 1.0, decimals: 2, name: "US Dollar" },
+  EUR: { rateToUsd: 1.08, decimals: 2, name: "Euro" },
+  GBP: { rateToUsd: 1.28, decimals: 2, name: "British Pound" },
+  AUD: { rateToUsd: 0.65, decimals: 2, name: "Australian Dollar" },
+  CAD: { rateToUsd: 0.73, decimals: 2, name: "Canadian Dollar" },
+  SGD: { rateToUsd: 0.75, decimals: 2, name: "Singapore Dollar" },
+  JPY: { rateToUsd: 0.0065, decimals: 0, name: "Japanese Yen" },
+  CHF: { rateToUsd: 1.12, decimals: 2, name: "Swiss Franc" },
+  AED: { rateToUsd: 0.272, decimals: 2, name: "UAE Dirham" },
+  NZD: { rateToUsd: 0.60, decimals: 2, name: "New Zealand Dollar" },
+  HKD: { rateToUsd: 0.128, decimals: 2, name: "Hong Kong Dollar" },
+  SEK: { rateToUsd: 0.094, decimals: 2, name: "Swedish Krona" },
+  NOK: { rateToUsd: 0.092, decimals: 2, name: "Norwegian Krone" },
+  DKK: { rateToUsd: 0.145, decimals: 2, name: "Danish Krone" },
+  PLN: { rateToUsd: 0.252, decimals: 2, name: "Polish Zloty" },
+  CZK: { rateToUsd: 0.043, decimals: 2, name: "Czech Koruna" },
+  HUF: { rateToUsd: 0.0027, decimals: 0, name: "Hungarian Forint" },
+  MXN: { rateToUsd: 0.055, decimals: 2, name: "Mexican Peso" },
+  BRL: { rateToUsd: 0.18, decimals: 2, name: "Brazilian Real" },
+  MYR: { rateToUsd: 0.215, decimals: 2, name: "Malaysian Ringgit" },
+  THB: { rateToUsd: 0.028, decimals: 2, name: "Thai Baht" },
+  PHP: { rateToUsd: 0.0175, decimals: 2, name: "Philippine Peso" },
+  TWD: { rateToUsd: 0.031, decimals: 0, name: "New Taiwan Dollar" },
+  ILS: { rateToUsd: 0.27, decimals: 2, name: "Israeli Shekel" },
+  TRY: { rateToUsd: 0.029, decimals: 2, name: "Turkish Lira" },
+};
+
+/**
+ * Normalizes an international currency amount to USD using integer minor-unit arithmetic
+ * Avoids IEEE-754 floating point rounding drift.
+ *
+ * @param {number | string} amount
+ * @param {string} currency
+ * @returns {{ currency: string, originalAmount: number, decimals: number, minorUnits: number, fxRate: number, usdEquivalent: number }}
+ */
+export function normalizeToUsd(amount, currency) {
+  const normCurr = String(currency || "").trim().toUpperCase();
+  const num = Number(amount);
+  if (isNaN(num) || num <= 0) {
+    throw new Error("Amount must be a positive number greater than 0");
+  }
+
+  const fxInfo = STATIC_FX_RATES_V1[normCurr];
+  if (!fxInfo) {
+    throw new Error(`Unsupported currency '${normCurr}'. Supported: ${Object.keys(STATIC_FX_RATES_V1).join(", ")}`);
+  }
+
+  const scale = 10 ** fxInfo.decimals;
+  const minorUnits = Math.round(num * scale);
+  const rawOriginal = minorUnits / scale;
+  const usdCents = Math.round(rawOriginal * fxInfo.rateToUsd * 100);
+  const usdEquivalent = Number((usdCents / 100).toFixed(2));
+
+  return {
+    currency: normCurr,
+    originalAmount: rawOriginal,
+    decimals: fxInfo.decimals,
+    minorUnits,
+    fxRate: fxInfo.rateToUsd,
+    usdEquivalent,
+  };
+}
+
+/**
  * Deterministic Money Guide AI Policy Engine
  * Runs strict deterministic financial validation - Zero LLM hallucination risk.
  * @param {object} intent - { buyer_token, item, amount, currency, quantity, readBackConfirmed }
@@ -100,40 +169,69 @@ export function evaluateTransactionPolicy(intent, options = {}) {
   }
 
   // 2. Read-Back Confirmation Enforcement (Required before step-up verification)
-  if (options.requireReadBack === true && readBackConfirmed !== true) {
-    return {
-      approved: false,
-      policyViolation: "READ_BACK_NOT_CONFIRMED",
-      message: "The invoice preview must be visually and audibly confirmed (readBackConfirmed: true) before step-up authorization.",
-      buyer,
-      policySnapshot: { buyer_token, readBackConfirmed: Boolean(readBackConfirmed) },
-    };
+  if (options.requireReadBack === true) {
+    if (readBackConfirmed !== true) {
+      return {
+        approved: false,
+        policyViolation: "READ_BACK_NOT_CONFIRMED",
+        message: "The invoice preview must be visually and audibly confirmed (readBackConfirmed: true) before step-up authorization.",
+        buyer,
+        policySnapshot: { buyer_token, readBackConfirmed: Boolean(readBackConfirmed) },
+      };
+    }
+
+    if (options.confirmationDigest) {
+      const expectedDigest = computeReadBackDigest(intent, options.language || "en");
+      try {
+        const matches = crypto.timingSafeEqual(
+          Buffer.from(options.confirmationDigest, "hex"),
+          Buffer.from(expectedDigest, "hex")
+        );
+        if (!matches) {
+          return {
+            approved: false,
+            policyViolation: "READ_BACK_DIGEST_MISMATCH",
+            message: "Cryptographic confirmation digest mismatch. Staged invoice fields do not match confirmed read-back summary.",
+            buyer,
+            policySnapshot: { buyer_token, readBackConfirmed: false },
+          };
+        }
+      } catch {
+        return {
+          approved: false,
+          policyViolation: "READ_BACK_DIGEST_INVALID",
+          message: "Invalid read-back confirmation digest encoding.",
+          buyer,
+          policySnapshot: { buyer_token, readBackConfirmed: false },
+        };
+      }
+    }
   }
 
-  // 3. Currency Compliance (PayPal India OPGSP Rule)
+  // 3. Currency Compliance (PayPal India OPGSP Rule & 25-Currency Normalization)
   const normCurrency = String(currency || "").trim().toUpperCase();
   if (normCurrency === "INR") {
     return {
       approved: false,
       policyViolation: "DOMESTIC_INR_NOT_SUPPORTED",
-      message: "PayPal India regulations strictly prohibit domestic INR transfers. PayVoice only supports cross-border export invoicing in USD or EUR.",
+      message: "PayPal India regulations strictly prohibit domestic INR transfers under RBI OPGSP guidelines. PayVoice only supports cross-border export invoicing in approved foreign currencies.",
       buyer,
-      policySnapshot: { requestedCurrency: normCurrency, permittedCurrencies: ["USD", "EUR"] },
+      policySnapshot: { requestedCurrency: normCurrency, permittedCurrencies: Object.keys(STATIC_FX_RATES_V1) },
     };
   }
 
-  if (!["USD", "EUR"].includes(normCurrency)) {
+  const fxInfo = STATIC_FX_RATES_V1[normCurrency];
+  if (!fxInfo) {
     return {
       approved: false,
       policyViolation: "UNSUPPORTED_EXPORT_CURRENCY",
-      message: `Currency '${normCurrency}' is not permitted. Only USD and EUR export invoicing are authorized.`,
+      message: `Currency '${normCurrency}' is not permitted. Only approved international currencies are authorized.`,
       buyer,
-      policySnapshot: { requestedCurrency: normCurrency },
+      policySnapshot: { requestedCurrency: normCurrency, supportedCurrencies: Object.keys(STATIC_FX_RATES_V1) },
     };
   }
 
-  // 4. Export Value Cap Enforcement
-  const maxCap = Math.min(buyer.maxLimit || 2500.0, 2500.0);
+  // 4. Export Value Cap Enforcement (Integer Minor-Unit Normalized to USD)
   if (isNaN(numAmount) || numAmount <= 0) {
     return {
       approved: false,
@@ -144,13 +242,33 @@ export function evaluateTransactionPolicy(intent, options = {}) {
     };
   }
 
-  if (numAmount > maxCap) {
+  let normalized;
+  try {
+    normalized = normalizeToUsd(numAmount, normCurrency);
+  } catch (err) {
+    return {
+      approved: false,
+      policyViolation: "CURRENCY_CALCULATION_ERROR",
+      message: err.message,
+      buyer,
+      policySnapshot: { requestedAmount: numAmount, currency: normCurrency },
+    };
+  }
+
+  const maxCap = Math.min(buyer.maxLimit || 2500.0, 2500.0);
+  if (normalized.usdEquivalent > maxCap) {
     return {
       approved: false,
       policyViolation: "EXPORT_LIMIT_EXCEEDED",
-      message: `Requested amount $${numAmount.toFixed(2)} exceeds the authorized regulatory limit of $${maxCap.toFixed(2)} USD for this exporter.`,
+      message: `Requested amount ${numAmount.toFixed(2)} ${normCurrency} ($${normalized.usdEquivalent.toFixed(2)} USD equivalent) exceeds the authorized regulatory limit of $${maxCap.toFixed(2)} USD for this exporter.`,
       buyer,
-      policySnapshot: { requestedAmount: numAmount, maxAuthorizedCap: maxCap },
+      policySnapshot: {
+        requestedAmount: numAmount,
+        currency: normCurrency,
+        usdEquivalent: normalized.usdEquivalent,
+        fxRate: normalized.fxRate,
+        maxAuthorizedCap: maxCap,
+      },
     };
   }
 
@@ -383,4 +501,116 @@ export function analyzeMerchantAnomalies(transactions = [], invoices = []) {
     alerts,
     analyzedAt: new Date().toISOString(),
   };
+}
+
+const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24-hour deterministic reminder cooldown
+const READBACK_SECRET = process.env.VAULT_SECRET || "payvoice-readback-secret-2026";
+
+/**
+ * Validate payment reminder policy (Eligible only if SENT and UNPAID, enforces 24-hour cooldown)
+ *
+ * @param {string} invoiceId
+ * @param {string} invoiceStatus
+ * @param {string | number} [lastReminderTimestamp]
+ * @param {object} [options={}]
+ * @returns {{ allowed: boolean, reason?: string, eligibleAt?: string, remainingMs?: number }}
+ */
+export function validateInvoiceReminderPolicy(invoiceId, invoiceStatus, lastReminderTimestamp = null, options = {}) {
+  if (!invoiceId) {
+    return { allowed: false, reason: "Missing mandatory invoiceId parameter." };
+  }
+
+  const normStatus = String(invoiceStatus || "").trim().toUpperCase();
+  const eligibleStatuses = ["SENT", "UNPAID", "SENT (UNPAID)"];
+
+  if (!eligibleStatuses.includes(normStatus)) {
+    return {
+      allowed: false,
+      status: normStatus,
+      reason: `Invoice status '${normStatus}' is not eligible for payment reminders. Only SENT and UNPAID invoices may receive reminders (PAID, DRAFT, and CANCELLED are blocked).`,
+    };
+  }
+
+  const now = Date.now();
+  const cooldownMs = options.cooldownMs || REMINDER_COOLDOWN_MS;
+
+  if (lastReminderTimestamp !== null && lastReminderTimestamp !== undefined) {
+    const lastTime = new Date(lastReminderTimestamp).getTime();
+    if (isNaN(lastTime)) {
+      return { allowed: false, reason: "Invalid lastReminderTimestamp format." };
+    }
+
+    if (lastTime > now + 300000) {
+      return { allowed: false, reason: "Invalid reminder timestamp: Future timestamp detected." };
+    }
+
+    const elapsed = now - lastTime;
+    if (elapsed < cooldownMs) {
+      const remainingHours = ((cooldownMs - elapsed) / (60 * 60 * 1000)).toFixed(1);
+      return {
+        allowed: false,
+        reason: `Reminder cooldown active. Invoices can only receive a reminder once every ${Math.round(cooldownMs / 3600000)}h to avoid buyer harassment (${remainingHours}h remaining).`,
+        remainingMs: cooldownMs - elapsed,
+        eligibleAt: new Date(lastTime + cooldownMs).toISOString(),
+      };
+    }
+  }
+
+  return {
+    allowed: true,
+    invoiceId,
+    status: normStatus,
+    eligibleAt: new Date(now).toISOString(),
+  };
+}
+
+/**
+ * Cryptographic Read-Back Confirmation Digest
+ * Binds the localized speech preview parameters to prevent tampering between audio preview and passkey execution.
+ *
+ * @param {object} stagedInvoice - { buyer_token, item, quantity, amount, currency, stageId }
+ * @param {string} [language="en"] - Localized confirmation language (en, hi, mr)
+ * @returns {string} 64-character HMAC-SHA256 hex digest
+ */
+export function computeReadBackDigest(stagedInvoice, language = "en") {
+  if (!stagedInvoice || typeof stagedInvoice !== "object") {
+    throw new Error("Invalid stagedInvoice: must be an object");
+  }
+
+  const buyerToken = String(stagedInvoice.buyer_token || stagedInvoice.buyerToken || "").trim().toUpperCase();
+  const item = String(stagedInvoice.item || "").trim().toLowerCase();
+  const quantity = String(stagedInvoice.quantity || "1 unit").trim().toLowerCase();
+  const amount = Number(stagedInvoice.amount || 0).toFixed(2);
+  const currency = String(stagedInvoice.currency || "USD").trim().toUpperCase();
+  const lang = String(language || "en").trim().toLowerCase();
+  const stageId = String(stagedInvoice.stageId || stagedInvoice.id || stagedInvoice.version || "STAGED_V1").trim();
+
+  const canonicalString = `${buyerToken}|${item}|${quantity}|${amount}|${currency}|${lang}|${stageId}`;
+  return crypto.createHmac("sha256", READBACK_SECRET).update(canonicalString).digest("hex");
+}
+
+/**
+ * Verifies a confirmation digest against the staged invoice parameters
+ *
+ * @param {object} params - { stagedInvoice, language, confirmationDigest }
+ * @returns {{ valid: boolean, reason?: string }}
+ */
+export function verifyReadBackConfirmation({ stagedInvoice, language = "en", confirmationDigest }) {
+  if (!confirmationDigest || typeof confirmationDigest !== "string") {
+    return { valid: false, reason: "Missing confirmation digest" };
+  }
+
+  const expected = computeReadBackDigest(stagedInvoice, language);
+  try {
+    const isMatch = crypto.timingSafeEqual(
+      Buffer.from(confirmationDigest, "hex"),
+      Buffer.from(expected, "hex")
+    );
+    return {
+      valid: isMatch,
+      reason: isMatch ? null : "Confirmation digest does not match staged invoice payload",
+    };
+  } catch {
+    return { valid: false, reason: "Invalid confirmation digest format" };
+  }
 }

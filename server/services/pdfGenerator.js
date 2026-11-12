@@ -256,3 +256,90 @@ export async function generateEncryptedStatementPdf({
     }
   });
 }
+
+/**
+ * Dual-Layer AES-256-GCM Binary Envelope for PDF Export
+ * Derives a 256-bit key using Scrypt (N=16384, r=8, p=1) with a 16-byte salt,
+ * generates a 12-byte GCM nonce, encrypts with aes-256-gcm, and produces an authenticated envelope.
+ *
+ * @param {Buffer|string} pdfBuffer - Raw PDF bytes
+ * @param {string} passphrase - User/Master passphrase
+ * @param {object} [metadata={}] - Optional metadata to bind into envelope
+ * @returns {{ version: string, salt: string, iv: string, authTag: string, ciphertext: string, metadata: object, createdAt: string }}
+ */
+export function createAes256EncryptedPdfEnvelope(pdfBuffer, passphrase, metadata = {}) {
+  if (!Buffer.isBuffer(pdfBuffer) && typeof pdfBuffer !== "string") {
+    throw new Error("createAes256EncryptedPdfEnvelope: pdfBuffer must be a Buffer or string");
+  }
+  const inputBuf = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+  if (!passphrase || typeof passphrase !== "string") {
+    throw new Error("createAes256EncryptedPdfEnvelope: passphrase must be a non-empty string");
+  }
+
+  const salt = crypto.randomBytes(16);
+  const key = crypto.scryptSync(passphrase, salt, 32, { N: 16384, r: 8, p: 1 });
+  const iv = crypto.randomBytes(12);
+
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(inputBuf), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+
+  return {
+    version: "aes-256-gcm-pdf-envelope-v1",
+    salt: salt.toString("hex"),
+    iv: iv.toString("hex"),
+    authTag: authTag.toString("hex"),
+    ciphertext: ciphertext.toString("hex"),
+    metadata: { ...metadata },
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Verifies and decrypts an AES-256-GCM PDF envelope.
+ * Fails closed on wrong passphrase, tampered ciphertext, or missing fields.
+ * Validates that decrypted payload matches PDF magic header (%PDF).
+ *
+ * @param {object} envelope - Serialized envelope object
+ * @param {string} passphrase - Passphrase
+ * @returns {Buffer} Original decrypted PDF bytes
+ */
+export function verifyAndDecryptPdfEnvelope(envelope, passphrase) {
+  if (!envelope || typeof envelope !== "object") {
+    throw new Error("verifyAndDecryptPdfEnvelope: invalid envelope object");
+  }
+  if (envelope.version !== "aes-256-gcm-pdf-envelope-v1") {
+    throw new Error(`verifyAndDecryptPdfEnvelope: unsupported envelope version "${envelope.version}"`);
+  }
+  if (!envelope.salt || !envelope.iv || !envelope.authTag || !envelope.ciphertext) {
+    throw new Error("verifyAndDecryptPdfEnvelope: envelope is missing required cryptographic fields");
+  }
+  if (!passphrase || typeof passphrase !== "string") {
+    throw new Error("verifyAndDecryptPdfEnvelope: passphrase is required");
+  }
+
+  const salt = Buffer.from(envelope.salt, "hex");
+  const iv = Buffer.from(envelope.iv, "hex");
+  const authTag = Buffer.from(envelope.authTag, "hex");
+  const ciphertext = Buffer.from(envelope.ciphertext, "hex");
+
+  const key = crypto.scryptSync(passphrase, salt, 32, { N: 16384, r: 8, p: 1 });
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(authTag);
+
+  let decrypted;
+  try {
+    decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  } catch (err) {
+    throw new Error("verifyAndDecryptPdfEnvelope: decryption failed or authentication tag mismatch (tampered data or wrong passphrase)");
+  }
+
+  // Validate that decrypted buffer starts with '%PDF'
+  const header = decrypted.subarray(0, 4).toString("utf8");
+  if (header !== "%PDF") {
+    throw new Error("verifyAndDecryptPdfEnvelope: decrypted payload does not match PDF magic header (%PDF)");
+  }
+
+  return decrypted;
+}
+

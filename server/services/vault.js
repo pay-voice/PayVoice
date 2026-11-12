@@ -2,6 +2,21 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import {
+  encryptAes256Siv,
+  decryptAes256Siv,
+  encryptAes256Gcm,
+  decryptAes256Gcm,
+  deriveVaultKeys,
+} from "./sivCrypto.js";
+
+export {
+  encryptAes256Siv,
+  decryptAes256Siv,
+  encryptAes256Gcm,
+  decryptAes256Gcm,
+  deriveVaultKeys,
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -251,4 +266,83 @@ export function registerBuyer(buyerData) {
 
   saveVault();
   return buyers[buyerToken];
+}
+
+/**
+ * Automatically scrub sensitive PII, credentials, PANs, and tokens from logs
+ * Non-mutating: safely clones nested structures and handles circular references.
+ *
+ * @param {any} input - Text, object, array, or error to scrub
+ * @returns {any} Sanitized clone safe for logging
+ */
+export function scrubPiiFromLogs(input) {
+  const seen = new WeakSet();
+
+  function scrubString(str) {
+    if (typeof str !== "string") return str;
+
+    let s = str;
+    // 1. Email addresses
+    s = s.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi, "[REDACTED_EMAIL]");
+    // 2. Indian PAN numbers (5 letters, 4 digits, 1 letter)
+    s = s.replace(/\b[A-Z]{5}[0-9]{4}[A-Z]\b/g, "[REDACTED_PAN]");
+    // 3. Payment Card PANs (13 to 19 digits with optional hyphens/spaces)
+    s = s.replace(/\b(?:\d[ -]*?){13,19}\b/g, "[REDACTED_CARD_PAN]");
+    // 4. Authorization Bearer tokens
+    s = s.replace(/Bearer\s+[a-zA-Z0-9_\-\.]+/gi, "Bearer [REDACTED_TOKEN]");
+    // 5. Credential/Secret assignment patterns
+    s = s.replace(/(?:password|client_secret|api_key|secret|private_key|token)\s*[:=]\s*["']?([^"',\s]+)["']?/gi, (match) => {
+      const parts = match.split(/[:=]/);
+      return `${parts[0]}=[REDACTED_SECRET]`;
+    });
+
+    return s;
+  }
+
+  function scrubNode(val) {
+    if (val === null || val === undefined) return val;
+    if (typeof val === "string") return scrubString(val);
+    if (typeof val === "number" || typeof val === "boolean") return val;
+
+    if (typeof val === "object") {
+      if (seen.has(val)) {
+        return "[CIRCULAR_REFERENCE]";
+      }
+      seen.add(val);
+
+      if (Buffer.isBuffer(val)) {
+        return `[BUFFER:${val.length}B]`;
+      }
+
+      if (val instanceof Error) {
+        return {
+          name: val.name,
+          message: scrubString(val.message),
+          stack: scrubString(val.stack || ""),
+        };
+      }
+
+      if (Array.isArray(val)) {
+        return val.map((item) => scrubNode(item));
+      }
+
+      const out = {};
+      const sensitiveKeyPattern = /^(password|client_?secret|secret|api_?key|private_?key|authorization|cookie|session_?id)$/i;
+
+      for (const [k, v] of Object.entries(val)) {
+        if (sensitiveKeyPattern.test(k)) {
+          out[k] = "[REDACTED_CREDENTIAL]";
+        } else if (typeof v === "string") {
+          out[k] = scrubString(v);
+        } else {
+          out[k] = scrubNode(v);
+        }
+      }
+      return out;
+    }
+
+    return String(val);
+  }
+
+  return scrubNode(input);
 }
