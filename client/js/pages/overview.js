@@ -178,13 +178,13 @@ export function renderOverviewPage(mount) {
                   </div>`
                     )
                     .join("")
-                : `<p style="font-size:13px;">No currency inflows recorded.</p>`
+                : `<p class="text-sm text-muted">No currency inflows recorded.</p>`
             }
             <hr style="border:none;border-top:1px solid var(--color-border-subtle);margin:4px 0;" />
             ${lifecycleCounts
               .map(
                 (lc) => `
-              <div class="donut-row" style="font-size:12px;">
+              <div class="donut-row">
                 <span style="color:var(--color-text-secondary);">${escapeHtml(lc.label)}</span>
                 <strong class="tabular-nums">${lc.value}</strong>
               </div>`
@@ -207,7 +207,7 @@ export function renderOverviewPage(mount) {
         ${
           txs.length
             ? `
-          <div class="table-responsive">
+          <div class="table-responsive" tabindex="0" role="region" aria-label="Export activity table">
             <table>
               <thead>
                 <tr>
@@ -225,11 +225,11 @@ export function renderOverviewPage(mount) {
                   <tr>
                     <td>
                       <div style="font-weight:600;">${escapeHtml(tx.item)}</div>
-                      <div style="font-size:12px;color:var(--color-text-tertiary);font-family:var(--font-mono);">${escapeHtml(tx.id)}</div>
+                      <div class="text-xs-mono text-muted">${escapeHtml(tx.id)}</div>
                     </td>
                     <td>
                       <div>${escapeHtml(tx.buyerName || tx.buyerToken)}</div>
-                      <div style="font-size:11px;color:var(--color-text-tertiary);">${formatDate(tx.date)}</div>
+                      <div class="text-xs text-muted">${formatDate(tx.date)}</div>
                     </td>
                     <td><span class="badge ${getStatusBadgeClass(tx.status)}">${escapeHtml(tx.status)}</span></td>
                     <td style="text-align:right;font-weight:700;" class="tabular-nums">${formatCurrency(tx.grossAmount || tx.amount, tx.currency)}</td>
@@ -285,7 +285,7 @@ export function renderOverviewPage(mount) {
                 <span class="badge ${getStatusBadgeClass(row.status)}">${escapeHtml(row.status)}</span>
                 <span style="color:var(--color-text-secondary);">${escapeHtml(row.invoiceId && row.invoiceId !== "N/A" ? row.invoiceId : `Block #${row.index}`)}</span>
               </div>
-              <span style="font-family:var(--font-mono);color:var(--color-text-tertiary);font-size:11px;white-space:nowrap;">${escapeHtml(truncateHash(row.rowHash, 10))} &bull; ${formatDateTime(row.timestamp)}</span>
+              <span class="text-xs-mono text-muted" style="white-space:nowrap;">${escapeHtml(truncateHash(row.rowHash, 10))} &bull; ${formatDateTime(row.timestamp)}</span>
             </div>`
             )
             .join("")}
@@ -304,7 +304,7 @@ export function renderOverviewPage(mount) {
       ${
         invoices.length
           ? `
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Export activity table">
           <table>
             <thead>
               <tr>
@@ -321,7 +321,7 @@ export function renderOverviewPage(mount) {
                 .map(
                   (inv) => `
                 <tr>
-                  <td style="font-family:var(--font-mono);font-size:12px;">${escapeHtml(inv.invoiceId)}</td>
+                  <td class="text-xs-mono">${escapeHtml(inv.invoiceId)}</td>
                   <td>${escapeHtml(inv.buyerName)} <small>(${escapeHtml(inv.buyerToken)})</small></td>
                   <td>${escapeHtml(inv.item)}</td>
                   <td><span class="badge ${getStatusBadgeClass(inv.status)}">${escapeHtml(inv.status)}</span></td>

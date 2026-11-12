@@ -47,7 +47,7 @@ function renderNotificationsPopover() {
   const items = store.getState().notifications || [];
   const unread = items.some((n) => !n.read);
 
-  if (dotEl) dotEl.classList.toggle("hidden", !unread);
+  if (dotEl) dotEl.classList.toggle("visible", unread);
   if (!listEl) return;
 
   if (!items.length) {
@@ -207,7 +207,7 @@ function renderKillSwitchBanner() {
   if (!banner) {
     banner = document.createElement("div");
     banner.id = "global-freeze-banner";
-    banner.className = "alert alert-error";
+    banner.className = "alert alert-danger";
     banner.setAttribute("role", "alert");
     main.insertBefore(banner, document.getElementById("page-mount"));
   }
@@ -215,7 +215,7 @@ function renderKillSwitchBanner() {
   banner.innerHTML = `
     <div class="alert-content" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div>
-        <span class="alert-title">Emergency Kill Switch Active ? Agent Frozen</span>
+        <span class="alert-title">Emergency Kill Switch Active — Agent Frozen</span>
         <span>All invoice staging and execution requests are suspended${ks.reason ? ` (${escapeHtml(ks.reason)})` : ""}.</span>
       </div>
       <button type="button" class="btn btn-secondary btn-sm" id="global-resume-agent-btn">Resume Agent</button>

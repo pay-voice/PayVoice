@@ -225,7 +225,7 @@ export function renderVoiceAssistantPage(mount) {
               </button>
               <div class="mic-meta">
                 <div class="mic-timer" id="va-timer">${formatTimer(recordSeconds)}</div>
-                <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);" id="va-status-text">
+                <div class="voice-status-label" id="va-status-text">
                   ${isListening
       ? `Listening in ${activeLang === "mr" ? "Marathi" : activeLang === "hi" ? "Hindi" : "English"}... Tap to stop`
       : speechSupported
@@ -336,18 +336,18 @@ export function renderVoiceAssistantPage(mount) {
               <div class="invoice-sheet-head">
                 <div>
                   <h3>${escapeHtml(staged.previewCard.buyerDisplayName)}</h3>
-                  <p style="font-size:13px;">${escapeHtml(staged.previewCard.buyerToken)} &bull; ${escapeHtml(staged.previewCard.buyerCompany)} (${escapeHtml(staged.previewCard.buyerCountry)})</p>
+                  <p class="text-sm text-muted">${escapeHtml(staged.previewCard.buyerToken)} &bull; ${escapeHtml(staged.previewCard.buyerCompany)} (${escapeHtml(staged.previewCard.buyerCountry)})</p>
                 </div>
                 <div class="invoice-total-amount">
                   <div>${escapeHtml(staged.previewCard.amountFormatted)}</div>
-                  <div style="font-size:12px;color:var(--color-success);font-weight:600;">${escapeHtml(staged.previewCard.estInrFormatted)}</div>
+                  <div class="text-xs text-success" style="font-weight:600;">${escapeHtml(staged.previewCard.estInrFormatted)}</div>
                 </div>
               </div>
 
-              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 12px;background:var(--color-surface);border-radius:var(--radius-lg);border:1px solid var(--color-border-subtle);">
+              <div class="invoice-service-strip">
                 <div>
                   <strong>${escapeHtml(staged.previewCard.item)}</strong>
-                  <div style="font-size:12px;color:var(--color-text-tertiary);">${escapeHtml(staged.previewCard.quantity)} &bull; RBI Purpose Code: ${escapeHtml(staged.previewCard.rbiPurposeCode)}</div>
+                  <div class="text-xs text-muted">${escapeHtml(staged.previewCard.quantity)} &bull; RBI Purpose Code: ${escapeHtml(staged.previewCard.rbiPurposeCode)}</div>
                 </div>
                 <span class="badge badge-purple">${escapeHtml(staged.previewCard.rbiPurposeCode)}</span>
               </div>
@@ -453,7 +453,7 @@ export function renderVoiceAssistantPage(mount) {
             <h2 class="card-title">Security Guarantee</h2>
             <span class="badge badge-purple">NIST / FIDO2</span>
           </div>
-          <p style="font-size:13px;">
+          <p class="section-desc">
             Voice is strictly an intent-capture interface. PayVoice never accepts spoken passwords and never allows the LLM to execute PayPal writes without deterministic Node.js validation, visual/audible read-back, and WebAuthn passkey verification.
           </p>
         </div>
@@ -751,7 +751,7 @@ async function processTranscript(mount, rawText) {
       nonInvoiceResult = {
         title: `Encrypted Statement Ready (${extractedIntent.date_range || "Last 30 Days"})`,
         html: `
-          <p style="font-size:13px;margin-bottom:12px;">Your request for an encrypted CA/GST Rule 96A accounting statement (${escapeHtml(extractedIntent.date_range || "Last 30 Days")}) is validated and ready to generate.</p>
+          <p class="section-desc" style="margin-block-end:0.75rem;">Your request for an encrypted CA/GST Rule 96A accounting statement (${escapeHtml(extractedIntent.date_range || "Last 30 Days")}) is validated and ready to generate.</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <button type="button" class="btn btn-primary" id="va-noninv-pdf-btn">Download Encrypted Statement (PDF)</button>
             <button type="button" class="btn btn-secondary" onclick="window.location.hash='#statements'">Open Statements Page</button>
@@ -770,7 +770,7 @@ async function processTranscript(mount, rawText) {
       nonInvoiceResult = {
         title: "Live Payment & Invoice Status Lookup",
         html: `
-          <p style="font-size:13px;margin-bottom:10px;">Found <strong>${invs.length}</strong> session invoice(s) and <strong>${txs.length}</strong> settled sandbox transaction(s).</p>
+          <p class="section-desc" style="margin-block-end:0.625rem;">Found <strong>${invs.length}</strong> session invoice(s) and <strong>${txs.length}</strong> settled sandbox transaction(s).</p>
           <div style="display:flex;flex-direction:column;gap:8px;">
             ${invs
             .slice(0, 3)
@@ -804,7 +804,7 @@ async function processTranscript(mount, rawText) {
       nonInvoiceResult = {
         title: "Payment Reminder Eligibility Check",
         html: eligible.length
-          ? `<p style="font-size:13px;margin-bottom:10px;">Found ${eligible.length} unpaid SENT invoice(s) eligible for a polite payment reminder (24h cooldown enforced).</p>
+          ? `<p class="section-desc" style="margin-block-end:0.625rem;">Found ${eligible.length} unpaid SENT invoice(s) eligible for a polite payment reminder (24h cooldown enforced).</p>
              <button type="button" class="btn btn-primary" id="va-noninv-reminder-btn">Review & Send in Invoices</button>`
           : `<div class="alert alert-warning"><div class="alert-content"><span class="alert-title">No Eligible Unpaid Invoices</span><span>Only SENT (unpaid) invoices can receive payment reminders. PAID and DRAFT invoices are deterministically blocked.</span></div></div>`,
       };

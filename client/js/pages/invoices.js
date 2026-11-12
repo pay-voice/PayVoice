@@ -172,7 +172,7 @@ export function renderInvoicesPage(mount) {
       ${
         pageItems.length
           ? `
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Export invoices table">
           <table>
             <thead>
               <tr>
@@ -191,18 +191,18 @@ export function renderInvoicesPage(mount) {
                   (inv) => `
                 <tr>
                   <td>
-                    <div style="font-family:var(--font-mono);font-size:12px;font-weight:600;">${escapeHtml(inv.invoiceId)}</div>
-                    <span class="badge badge-neutral" style="margin-top:3px;font-size:10px;">${escapeHtml(inv.sourceLabel)}</span>
+                    <div class="text-xs-mono" style="font-weight:600;">${escapeHtml(inv.invoiceId)}</div>
+                    <span class="badge badge-neutral text-2xs-mono" style="margin-block-start:0.1875rem;">${escapeHtml(inv.sourceLabel)}</span>
                   </td>
                   <td>
                     <div style="font-weight:600;">${escapeHtml(inv.buyerName)}</div>
-                    <div style="font-size:12px;color:var(--color-text-tertiary);font-family:var(--font-mono);">${escapeHtml(inv.buyerToken)}</div>
+                    <div class="text-xs-mono text-muted">${escapeHtml(inv.buyerToken)}</div>
                   </td>
                   <td>
                     <div>${escapeHtml(inv.item)}</div>
-                    <div style="font-size:12px;color:var(--color-text-tertiary);">${escapeHtml(inv.quantity || "1 Milestone")} &bull; RBI ${escapeHtml(inv.rbiPurposeCode || "P0802")}</div>
+                    <div class="text-xs text-muted">${escapeHtml(inv.quantity || "1 Milestone")} &bull; RBI ${escapeHtml(inv.rbiPurposeCode || "P0802")}</div>
                   </td>
-                  <td style="font-size:13px;">${formatDate(inv.date)}</td>
+                  <td class="text-sm">${formatDate(inv.date)}</td>
                   <td><span class="badge ${getStatusBadgeClass(inv.status)}">${escapeHtml(inv.status)}</span></td>
                   <td style="text-align:right;font-weight:700;" class="tabular-nums">${formatCurrency(inv.amount, inv.currency)}</td>
                   <td style="text-align:right;">
@@ -401,7 +401,7 @@ function openInvoiceDetailModal(inv, mount) {
           <div>
             <span class="badge ${getStatusBadgeClass(inv.status)}" style="margin-bottom:6px;">${escapeHtml(inv.status)}</span>
             <h3>${escapeHtml(inv.buyerName)}</h3>
-            <p style="font-size:13px;">${escapeHtml(inv.buyerToken)} &bull; ${escapeHtml(inv.buyerCompany || "International Client")}</p>
+            <p class="text-sm text-muted">${escapeHtml(inv.buyerToken)} &bull; ${escapeHtml(inv.buyerCompany || "International Client")}</p>
           </div>
           <div class="invoice-total-amount">${formatCurrency(inv.amount, inv.currency)}</div>
         </div>

@@ -4,11 +4,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <script>
+    try {
+      var raw = localStorage.getItem("payvoice_preferences_v1");
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && (parsed.theme === "light" || parsed.theme === "dark")) {
+          var meta = document.querySelector('meta[name="color-scheme"]');
+          if (meta) meta.setAttribute("content", parsed.theme);
+          document.documentElement.setAttribute("data-theme", parsed.theme);
+        }
+      }
+    } catch (e) {}
+  </script>
   <title>Overview — PayVoice</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="css/design-tokens.css" />
   <link rel="stylesheet" href="css/base.css" />
@@ -18,6 +32,7 @@
 </head>
 
 <body>
+  <a href="#page-mount" class="skip-link visually-hidden">Skip to main content</a>
   <div class="app-shell">
     <div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
 
@@ -25,7 +40,15 @@
     <aside id="sidebar" class="sidebar" aria-label="Primary Navigation">
       <div class="sidebar-brand">
         <a href="#overview" class="brand-mark">
-          <div class="brand-icon" aria-hidden="true">PV</div>
+          <div class="brand-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 2.5L4.5 5.8v5.7c0 4.9 3.2 9.4 7.5 10.7 4.3-1.3 7.5-5.8 7.5-10.7V5.8L12 2.5z"
+                fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="1.8"
+                stroke-linejoin="round" />
+              <path d="M8.5 12v-1.2M12 14.2V8.8M15.5 12.6V10" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" />
+            </svg>
+          </div>
           <div class="brand-text">
             <span class="brand-name">PayVoice</span>
             <span class="brand-sub">India OPGSP Exporter</span>
@@ -39,17 +62,17 @@
         </button>
       </div>
 
-      <nav class="sidebar-nav">
+      <nav class="sidebar-nav" aria-label="Dashboard sections">
         <div>
           <div class="nav-group-label">Workspace</div>
           <div class="nav-list">
             <button type="button" class="nav-item active" data-route="overview">
               <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 aria-hidden="true">
-                <rect x="3" y="3" width="7" height="9" rx="1" />
-                <rect x="14" y="3" width="7" height="5" rx="1" />
-                <rect x="14" y="12" width="7" height="9" rx="1" />
-                <rect x="3" y="16" width="7" height="5" rx="1" />
+                <rect x="3" y="3" width="7" height="9" rx="1.5" />
+                <rect x="14" y="3" width="7" height="5" rx="1.5" />
+                <rect x="14" y="12" width="7" height="9" rx="1.5" />
+                <rect x="3" y="16" width="7" height="5" rx="1.5" />
               </svg>
               <span>Overview</span>
             </button>
@@ -181,7 +204,7 @@
           </button>
           <nav class="breadcrumbs" aria-label="Breadcrumb">
             <span class="crumb-root">PayVoice</span>
-            <span aria-hidden="true">/</span>
+            <span class="crumb-sep" aria-hidden="true">/</span>
             <span class="crumb-current" id="breadcrumb-current">Overview</span>
           </nav>
         </div>
@@ -207,13 +230,12 @@
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
-              <span id="notif-dot" class="notif-dot"></span>
+              <span id="notif-dot" class="notif-dot" aria-hidden="true"></span>
             </button>
-            <div id="notif-popover" class="popover-panel" role="dialog" aria-label="Notifications">
+            <div id="notif-popover" class="popover-panel" role="region" aria-label="Notifications">
               <div class="popover-head">
                 <span>Notifications</span>
-                <button type="button" id="notif-mark-read" class="btn btn-ghost btn-sm" style="min-height:26px;">Mark
-                  all read</button>
+                <button type="button" id="notif-mark-read" class="btn btn-ghost btn-sm">Mark all read</button>
               </div>
               <div id="notif-list" class="popover-list"></div>
             </div>
@@ -243,16 +265,16 @@
 
       <main id="page-mount" class="main-content" tabindex="-1">
         <div class="card">
-          <div class="skeleton" style="height:28px;width:240px;"></div>
-          <div class="skeleton" style="height:120px;width:100%;"></div>
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-block"></div>
         </div>
       </main>
     </div>
   </div>
 
-  <!-- Accessible Modal Container -->
-  <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">
-    <div id="modal-panel" class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <!-- Accessible Native Modal Container -->
+  <dialog id="modal-dialog" class="modal-dialog" closedby="any" aria-labelledby="modal-title">
+    <div id="modal-panel" class="modal-panel">
       <div class="modal-header">
         <h2 id="modal-title">Modal Title</h2>
         <button type="button" id="modal-close-btn" class="modal-close" aria-label="Close modal">
@@ -265,7 +287,7 @@
       <div id="modal-body" class="modal-body"></div>
       <div id="modal-footer" class="modal-footer"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>

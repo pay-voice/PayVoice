@@ -188,7 +188,7 @@ export function renderSecurityAuditPage(mount) {
               )
               .join("")}
           </div>`
-            : `<p style="font-size:13px;">Use <strong>Inject Demo Bit-Flip</strong> followed by <strong>Verify Hash Chain</strong> to observe immediate cryptographic tamper detection, then restore the ledger cleanly.</p>`
+            : `<p class="section-desc">Use <strong>Inject Demo Bit-Flip</strong> followed by <strong>Verify Hash Chain</strong> to observe immediate cryptographic tamper detection, then restore the ledger cleanly.</p>`
         }
       </div>
     </div>
@@ -217,7 +217,7 @@ export function renderSecurityAuditPage(mount) {
       ${
         filteredLedger.length
           ? `
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Cryptographic audit ledger table">
           <table>
             <thead>
               <tr>
@@ -236,12 +236,12 @@ export function renderSecurityAuditPage(mount) {
                 .map(
                   (row) => `
                 <tr>
-                  <td style="font-family:var(--font-mono);font-size:12px;">#${row.index}</td>
-                  <td style="font-size:12px;">${formatDateTime(row.timestamp)}</td>
+                  <td class="text-xs-mono">#${row.index}</td>
+                  <td class="text-xs">${formatDateTime(row.timestamp)}</td>
                   <td><span class="badge ${getStatusBadgeClass(row.status)}">${escapeHtml(row.status)}</span></td>
-                  <td style="font-family:var(--font-mono);font-size:12px;">${escapeHtml(row.invoiceId || "N/A")}</td>
-                  <td style="font-family:var(--font-mono);font-size:12px;">${escapeHtml(truncateHash(row.passkeyAssertionId, 18))}</td>
-                  <td style="font-family:var(--font-mono);font-size:12px;color:var(--color-brand-secondary);">${escapeHtml(truncateHash(row.rowHash, 18))}</td>
+                  <td class="text-xs-mono">${escapeHtml(row.invoiceId || "N/A")}</td>
+                  <td class="text-xs-mono">${escapeHtml(truncateHash(row.passkeyAssertionId, 18))}</td>
+                  <td class="text-xs-mono" style="color:var(--color-brand-primary);">${escapeHtml(truncateHash(row.rowHash, 18))}</td>
                   <td style="text-align:right;">
                     <button type="button" class="btn btn-secondary btn-sm" data-audit-idx="${row.index}">Details</button>
                   </td>

@@ -1,6 +1,6 @@
 /**
  * PayVoice Shared Utilities
- * Formatting, XSS-safe escaping, SVG Charts, Modals, Toasts, and Speech Read-Back.
+ * Formatting, XSS-safe escaping, SVG Charts, Native <dialog> Modals, Toasts, and Speech Read-Back.
  */
 
 export function escapeHtml(str) {
@@ -60,7 +60,7 @@ export function getStatusBadgeClass(status = "") {
     return "badge-warning";
   }
   if (["BLOCKED", "FAILED", "REJECTED", "FIREWALL_BLOCKED", "POLICY_VIOLATION", "WEBAUTHN_REJECTED", "BLOCKED_ATTACK"].includes(s)) {
-    return "badge-error";
+    return "badge-danger";
   }
   return "badge-neutral";
 }
@@ -111,15 +111,20 @@ export function showToast({ title, message = "", type = "info", duration = 4200 
   const container = document.getElementById("toast-container");
   if (!container) return;
 
+  const normalizedType = ["success", "error", "warning", "info"].includes(type) ? type : "info";
   const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
+  toast.className = `toast toast-${normalizedType}`;
   toast.setAttribute("role", "status");
   toast.innerHTML = `
     <div class="toast-body">
       <strong class="toast-title">${escapeHtml(title)}</strong>
-      ${message ? `<div class="toast-msg">${escapeHtml(message)}</div>` : ""}
+      ${message ? `<div class="toast-message">${escapeHtml(message)}</div>` : ""}
     </div>
-    <button type="button" class="btn-ghost btn-sm" aria-label="Dismiss notification" style="padding:2px 6px;min-height:24px;">✕</button>
+    <button type="button" class="toast-close" aria-label="Dismiss notification">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    </button>
   `;
 
   const closeBtn = toast.querySelector("button");
@@ -135,24 +140,50 @@ export function showToast({ title, message = "", type = "info", duration = 4200 
 }
 
 /**
- * Accessible Modal Manager (Escape to close, backdrop click, focus restoration)
+ * Accessible Native <dialog> Modal Manager (Escape, closedby="any" + Safari fallback, smooth top-layer exit)
  */
-let lastFocusedBeforeModal = null;
 let activeModalCloseHandler = null;
+let modalCloseTimer = null;
+
+function canTransitionDisplay() {
+  return (
+    typeof CSS !== "undefined" &&
+    typeof CSS.supports === "function" &&
+    CSS.supports("transition-behavior", "allow-discrete") &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function finalizeDialogClose(dialog) {
+  dialog.removeAttribute("data-closing");
+  if (modalCloseTimer) {
+    clearTimeout(modalCloseTimer);
+    modalCloseTimer = null;
+  }
+  if (dialog.open) {
+    dialog.close();
+  }
+}
 
 export function openModal({ title, bodyHtml, footerHtml = "", size = "md", onMount = null, onClose = null }) {
-  const backdrop = document.getElementById("modal-backdrop");
+  const dialog = document.getElementById("modal-dialog");
   const panel = document.getElementById("modal-panel");
   const titleEl = document.getElementById("modal-title");
   const bodyEl = document.getElementById("modal-body");
   const footerEl = document.getElementById("modal-footer");
 
-  if (!backdrop || !panel) return;
+  if (!dialog || !panel) return;
 
-  lastFocusedBeforeModal = document.activeElement;
+  if (modalCloseTimer) {
+    clearTimeout(modalCloseTimer);
+    modalCloseTimer = null;
+  }
+  dialog.removeAttribute("data-closing");
+
   activeModalCloseHandler = onClose;
 
-  panel.className = `modal-panel ${size === "lg" ? "modal-lg" : ""}`;
+  const normalizedSize = ["sm", "md", "lg", "xl"].includes(size) ? size : "md";
+  panel.className = `modal-panel modal-${normalizedSize}`;
   titleEl.textContent = title;
   bodyEl.innerHTML = bodyHtml;
 
@@ -164,60 +195,85 @@ export function openModal({ title, bodyHtml, footerHtml = "", size = "md", onMou
     footerEl.style.display = "none";
   }
 
-  backdrop.classList.add("open");
-  backdrop.setAttribute("aria-hidden", "false");
-  document.body.style.overflow = "hidden";
-
-  if (typeof onMount === "function") {
-    onMount({ backdrop, panel, bodyEl, footerEl, close: closeModal });
+  if (!dialog.open) {
+    dialog.showModal();
   }
 
-  const focusTarget = panel.querySelector("input, select, textarea, button:not(.modal-close)") || panel.querySelector(".modal-close");
-  if (focusTarget) {
-    requestAnimationFrame(() => focusTarget.focus());
+  if (typeof onMount === "function") {
+    onMount({ dialog, backdrop: dialog, panel, bodyEl, footerEl, close: closeModal });
   }
 }
 
 export function closeModal() {
-  const backdrop = document.getElementById("modal-backdrop");
-  if (!backdrop || !backdrop.classList.contains("open")) return;
+  const dialog = document.getElementById("modal-dialog");
+  if (!dialog || !dialog.open || dialog.hasAttribute("data-closing")) return;
 
-  backdrop.classList.remove("open");
-  backdrop.setAttribute("aria-hidden", "true");
-  document.body.style.overflow = "";
-
-  if (typeof activeModalCloseHandler === "function") {
-    try {
-      activeModalCloseHandler();
-    } catch {
-      // ignore
-    }
-    activeModalCloseHandler = null;
+  if (!canTransitionDisplay()) {
+    dialog.close();
+    return;
   }
 
-  if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === "function") {
-    lastFocusedBeforeModal.focus();
-  }
-  lastFocusedBeforeModal = null;
+  dialog.setAttribute("data-closing", "");
+  const panel = document.getElementById("modal-panel");
+  const onEnd = () => finalizeDialogClose(dialog);
+  panel?.addEventListener("transitionend", onEnd, { once: true });
+  modalCloseTimer = setTimeout(() => {
+    panel?.removeEventListener("transitionend", onEnd);
+    finalizeDialogClose(dialog);
+  }, 260);
 }
 
 export function initModalListeners() {
-  const backdrop = document.getElementById("modal-backdrop");
+  const dialog = document.getElementById("modal-dialog");
   const closeBtn = document.getElementById("modal-close-btn");
 
-  if (closeBtn) closeBtn.addEventListener("click", closeModal);
-  if (backdrop) {
-    backdrop.addEventListener("click", (e) => {
-      if (e.target === backdrop) closeModal();
+  if (!dialog) return;
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", closeModal);
+  }
+
+  dialog.addEventListener("cancel", (e) => {
+    if (canTransitionDisplay()) {
+      e.preventDefault();
+      closeModal();
+    }
+  });
+
+  dialog.addEventListener("close", () => {
+    dialog.removeAttribute("data-closing");
+    if (modalCloseTimer) {
+      clearTimeout(modalCloseTimer);
+      modalCloseTimer = null;
+    }
+    if (typeof activeModalCloseHandler === "function") {
+      const handler = activeModalCloseHandler;
+      activeModalCloseHandler = null;
+      try {
+        handler();
+      } catch {
+        // ignore modal callback cleanup errors
+      }
+    }
+  });
+
+  // Coordinate-based light-dismiss fallback when closedby is unsupported (e.g. Safari)
+  if (!("closedBy" in HTMLDialogElement.prototype)) {
+    dialog.addEventListener("click", (e) => {
+      if (e.target !== dialog) return;
+      const rect = dialog.getBoundingClientRect();
+      const clickedInDialog =
+        rect.top <= e.clientY &&
+        e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX &&
+        e.clientX <= rect.left + rect.width;
+      if (!clickedInDialog) closeModal();
     });
   }
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeModal();
-  });
 }
 
 /**
- * SVG Charts (Theme-aware via CSS Custom Properties, zero hardcoded theme breakage)
+ * SVG Charts (Theme-aware via CSS Custom Properties)
  */
 export function renderAreaBarChartSvg(points = [], { height = 210, valuePrefix = "$" } = {}) {
   if (!points.length) {
@@ -225,15 +281,15 @@ export function renderAreaBarChartSvg(points = [], { height = 210, valuePrefix =
   }
 
   const width = 560;
-  const padL = 48;
+  const padL = 52;
   const padR = 16;
   const padT = 18;
-  const padB = 32;
+  const padB = 34;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
   const maxVal = Math.max(...points.map((p) => Number(p.value || 0)), 100);
 
-  const barW = Math.min(40, Math.max(16, plotW / points.length - 18));
+  const barW = Math.min(38, Math.max(16, plotW / points.length - 18));
   const stepX = plotW / points.length;
 
   const gridLines = [0, 0.25, 0.5, 0.75, 1]
@@ -241,7 +297,7 @@ export function renderAreaBarChartSvg(points = [], { height = 210, valuePrefix =
       const y = padT + plotH - ratio * plotH;
       const val = Math.round(maxVal * ratio);
       return `
-        <line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="var(--color-chart-grid)" stroke-dasharray="3 3" stroke-width="1" />
+        <line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="var(--color-chart-grid)" stroke-dasharray="${ratio === 0 ? "none" : "3 3"}" stroke-width="1" />
         <text x="${padL - 8}" y="${y + 4}" text-anchor="end" fill="var(--color-text-tertiary)" font-size="11" font-family="var(--font-mono)">${valuePrefix}${val}</text>
       `;
     })
@@ -250,22 +306,28 @@ export function renderAreaBarChartSvg(points = [], { height = 210, valuePrefix =
   const bars = points
     .map((p, i) => {
       const val = Number(p.value || 0);
-      const barH = Math.max(3, (val / maxVal) * plotH);
+      const barH = Math.max(4, (val / maxVal) * plotH);
       const x = padL + i * stepX + (stepX - barW) / 2;
       const y = padT + plotH - barH;
       return `
-        <g>
+        <g class="pv-bar-group">
           <title>${escapeHtml(p.label)}: ${valuePrefix}${val.toFixed(2)}</title>
-          <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="5" fill="var(--color-chart-1)" opacity="0.88" />
-          <text x="${x + barW / 2}" y="${height - 10}" text-anchor="middle" fill="var(--color-text-secondary)" font-size="11">${escapeHtml(p.label)}</text>
+          <rect class="pv-bar" x="${x}" y="${y}" width="${barW}" height="${barH}" rx="6" fill="url(#pv-bar-grad)" />
+          <text x="${x + barW / 2}" y="${height - 10}" text-anchor="middle" fill="var(--color-text-secondary)" font-size="11" font-weight="500">${escapeHtml(p.label)}</text>
         </g>
       `;
     })
     .join("");
 
   return `
-    <div class="chart-wrap">
+    <div class="chart-svg-wrap">
       <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Export transaction revenue chart">
+        <defs>
+          <linearGradient id="pv-bar-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--color-chart-1)" stop-opacity="0.96" />
+            <stop offset="100%" stop-color="var(--color-chart-2)" stop-opacity="0.68" />
+          </linearGradient>
+        </defs>
         ${gridLines}
         ${bars}
       </svg>
@@ -317,4 +379,3 @@ export function renderDonutChartSvg(segments = [], { size = 156, centerLabel = "
     </svg>
   `;
 }
-

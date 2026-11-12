@@ -70,11 +70,11 @@ export function openInvoicePreviewModal(stagedData, { onExecuted, onRestaged } =
           <div>
             <span class="badge badge-warning" style="margin-bottom:6px;">Staged &bull; Awaiting Merchant Confirmation</span>
             <h3 style="font-size:1.15rem;">${escapeHtml(card.buyerDisplayName)}</h3>
-            <p style="font-size:13px;">${escapeHtml(card.buyerToken)} &bull; ${escapeHtml(card.buyerCompany)} (${escapeHtml(card.buyerCountry)})</p>
+            <p class="text-sm text-muted">${escapeHtml(card.buyerToken)} &bull; ${escapeHtml(card.buyerCompany)} (${escapeHtml(card.buyerCountry)})</p>
           </div>
           <div class="invoice-total-amount">
             <div>${escapeHtml(card.amountFormatted)}</div>
-            <div style="font-size:12px;color:var(--color-success);font-weight:600;">${escapeHtml(card.estInrFormatted)}</div>
+            <div class="text-xs text-success" style="font-weight:600;">${escapeHtml(card.estInrFormatted)}</div>
           </div>
         </div>
 
@@ -119,7 +119,7 @@ export function openInvoicePreviewModal(stagedData, { onExecuted, onRestaged } =
 
         <div>
           <div class="form-label" style="margin-bottom:4px;">Audible Read-Back Summary (${escapeHtml(lang.toUpperCase())})</div>
-          <div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:10px 12px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <div class="invoice-service-strip">
             <span>"${escapeHtml(readBackText)}"</span>
             <div style="display:flex;gap:6px;flex-shrink:0;">
               <button type="button" class="btn btn-secondary btn-sm" id="preview-play-audio">Play</button>

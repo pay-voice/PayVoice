@@ -143,7 +143,7 @@ export function renderMoneyGuidePage(mount) {
         </div>
 
         <div>
-          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+          <div class="text-xs" style="display:flex;justify-content:space-between;margin-block-end:0.375rem;">
             <span>Max Issued Single Invoice: <strong>$${Number(cfo?.opgspLimit?.maxInvoiceIssuedUsd || 0).toFixed(2)}</strong></span>
             <span>Remaining Headroom: <strong>$${Number(cfo?.opgspLimit?.remainingAllowanceUsd || 2500).toFixed(2)}</strong></span>
           </div>

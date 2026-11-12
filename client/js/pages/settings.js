@@ -124,7 +124,7 @@ export function renderSettingsPage(mount) {
 
         <div class="kv-item">
           <div class="kv-label">Enrolled Credential ID</div>
-          <div class="kv-val" style="font-family:var(--font-mono);font-size:12px;">
+          <div class="kv-val text-xs-mono">
             ${state.passkeyEnrolledId ? escapeHtml(truncateHash(state.passkeyEnrolledId, 32)) : "Not yet enrolled in this browser session"}
           </div>
         </div>

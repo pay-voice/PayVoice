@@ -75,7 +75,7 @@ export function renderStatementsPage(mount) {
             <div class="alert alert-success" role="status">
               <div class="alert-content">
                 <span class="alert-title">Encrypted PDF Downloaded: ${escapeHtml(lastGenerated.filename)}</span>
-                <div style="font-size:12px;margin-top:4px;font-family:var(--font-mono);">
+                <div class="text-xs-mono" style="margin-block-start:0.25rem;">
                   <div>SHA-256: ${escapeHtml(truncateHash(lastGenerated.checksum, 32))}</div>
                   <div>Audit Root: ${escapeHtml(truncateHash(lastGenerated.auditRoot, 32))}</div>
                   <div>Records Reconciled: ${lastGenerated.records} &bull; Generated: ${formatDateTime(lastGenerated.generatedAt)}</div>
@@ -117,7 +117,7 @@ export function renderStatementsPage(mount) {
               <span class="badge badge-neutral">Read-Only Export</span>
             </div>
           </div>
-          <p style="font-size:13px;">
+          <p class="text-sm text-muted">
             Every statement export is cryptographically recorded in the PayVoice Audit Ledger with its SHA-256 file checksum and active chain root hash.
           </p>
         </div>
@@ -139,7 +139,7 @@ export function renderStatementsPage(mount) {
                     <strong style="overflow-wrap:anywhere;">${escapeHtml(item.filename)}</strong>
                     <span class="badge badge-success">${escapeHtml(item.dateRange)}</span>
                   </div>
-                  <div style="font-size:11px;font-family:var(--font-mono);color:var(--color-text-tertiary);">
+                  <div class="text-2xs-mono text-muted">
                     SHA-256: ${escapeHtml(truncateHash(item.checksum, 24))} &bull; ${item.records} records
                   </div>
                 </div>`

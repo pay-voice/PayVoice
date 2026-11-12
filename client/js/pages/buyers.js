@@ -73,8 +73,8 @@ export function renderBuyersPage(mount) {
             <article class="buyer-card">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                 <div>
-                  <h3 style="font-size:16px;">${escapeHtml(b.displayName)}</h3>
-                  <div style="font-size:12px;color:var(--color-text-tertiary);">${escapeHtml(b.company || "International Client")}</div>
+                  <h3 style="font-size:var(--text-md);">${escapeHtml(b.displayName)}</h3>
+                  <div class="text-xs text-muted">${escapeHtml(b.company || "International Client")}</div>
                 </div>
                 <span class="badge badge-info">${escapeHtml(b.country)} &bull; ${escapeHtml(b.currency)}</span>
               </div>
@@ -82,15 +82,15 @@ export function renderBuyersPage(mount) {
               <div class="kv-grid" style="gap:8px;">
                 <div class="kv-item" style="padding:8px;">
                   <div class="kv-label">Opaque Token</div>
-                  <div class="kv-val" style="font-family:var(--font-mono);font-size:12px;">${escapeHtml(b.buyerToken)}</div>
+                  <div class="kv-val text-xs-mono">${escapeHtml(b.buyerToken)}</div>
                 </div>
                 <div class="kv-item" style="padding:8px;">
                   <div class="kv-label">Masked Email</div>
-                  <div class="kv-val" style="font-size:12px;">${escapeHtml(b.maskedEmail)}</div>
+                  <div class="kv-val text-xs">${escapeHtml(b.maskedEmail)}</div>
                 </div>
               </div>
 
-              <div style="font-size:12px;color:var(--color-text-secondary);">
+              <div class="text-xs text-secondary">
                 Default Contract: <strong>${escapeHtml(b.defaultItem || "Cloud API Development")}</strong> (${formatCurrency(b.defaultAmount || 200, b.currency)})
               </div>
               ${

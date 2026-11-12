@@ -56,7 +56,7 @@ export function openPasskeyAuthModal(stagedData, { onSuccess, onCancel } = {}) {
         </div>
         <div>
           <h3 style="font-size:1.1rem;">${escapeHtml(heading)}</h3>
-          <p style="font-size:13px;margin-top:4px;">${escapeHtml(subtext)}</p>
+          <p class="section-desc" style="margin-block-start:0.25rem;">${escapeHtml(subtext)}</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
           <span class="badge ${hasWebAuthn ? "badge-info" : "badge-warning"}">
@@ -75,7 +75,7 @@ export function openPasskeyAuthModal(stagedData, { onSuccess, onCancel } = {}) {
         </div>
         <div class="kv-item">
           <div class="kv-label">Challenge ID</div>
-          <div class="kv-val" style="font-family:var(--font-mono);font-size:12px;">${escapeHtml(webauthn.challengeId)}</div>
+          <div class="kv-val text-xs-mono">${escapeHtml(webauthn.challengeId)}</div>
         </div>
       </div>
 

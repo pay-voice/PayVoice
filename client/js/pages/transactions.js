@@ -119,7 +119,7 @@ export function renderTransactionsPage(mount) {
       ${
         pageItems.length
           ? `
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" role="region" aria-label="Cross-border export transactions table">
           <table>
             <thead>
               <tr>
@@ -140,12 +140,12 @@ export function renderTransactionsPage(mount) {
                 <tr data-tx-id="${escapeHtml(tx.id)}" style="cursor:pointer;" tabindex="0" role="button" aria-label="Inspect transaction ${escapeHtml(tx.id)}">
                   <td>${formatDate(tx.date)}</td>
                   <td>
-                    <div style="font-family:var(--font-mono);font-size:12px;font-weight:600;">${escapeHtml(tx.id)}</div>
-                    <div style="font-size:11px;color:var(--color-text-tertiary);font-family:var(--font-mono);">${escapeHtml(tx.invoiceId || "—")}</div>
+                    <div class="text-xs-mono" style="font-weight:600;">${escapeHtml(tx.id)}</div>
+                    <div class="text-2xs-mono text-muted">${escapeHtml(tx.invoiceId || "—")}</div>
                   </td>
                   <td>
                     <div style="font-weight:600;">${escapeHtml(tx.buyerName || "Overseas Buyer")}</div>
-                    <div style="font-size:11px;color:var(--color-text-tertiary);font-family:var(--font-mono);">${escapeHtml(tx.buyerToken || "")}</div>
+                    <div class="text-2xs-mono text-muted">${escapeHtml(tx.buyerToken || "")}</div>
                   </td>
                   <td>${escapeHtml(tx.item || tx.description)}</td>
                   <td><span class="badge ${getStatusBadgeClass(tx.status)}">${escapeHtml(tx.status)}</span></td>
@@ -238,7 +238,7 @@ export function renderTransactionsPage(mount) {
             <div>
               <span class="badge ${getStatusBadgeClass(tx.status)}" style="margin-bottom:6px;">${escapeHtml(tx.status)}</span>
               <h3>${escapeHtml(tx.buyerName || "Overseas Buyer")}</h3>
-              <p style="font-size:13px;">Token: <code>${escapeHtml(tx.buyerToken || "—")}</code></p>
+              <p class="text-sm text-muted">Token: <code>${escapeHtml(tx.buyerToken || "—")}</code></p>
             </div>
             <div class="invoice-total-amount">${formatCurrency(tx.grossAmount || tx.amount, tx.currency)}</div>
           </div>
