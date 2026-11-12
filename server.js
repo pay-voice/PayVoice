@@ -128,6 +128,16 @@ app.get("/api/config", (req, res) => {
 });
 
 // Fallback to client/index.html
+// Dedicated route for Shoury's Security Console
+app.get(["/security-console", "/security-console.html"], (req, res) => {
+  res.sendFile(path.join(__dirname, "client", "security-console.html"));
+});
+
+// Direct alias for /api/insights
+app.get("/api/insights", (req, res) => {
+  res.redirect(307, "/api/transactions/insights");
+});
+
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "client", "index.html"));
 });
