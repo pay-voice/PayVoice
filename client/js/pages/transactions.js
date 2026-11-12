@@ -24,7 +24,6 @@ let statusFilter = "ALL";
 let sortField = "date_desc";
 let currentPage = 1;
 const PAGE_SIZE = 8;
-let isFetching = false;
 
 /**
  * Sanitize CSV cell values to prevent spreadsheet formula injection attacks
@@ -132,26 +131,6 @@ export function renderTransactionsPage(mount) {
   const state = store.getState();
   const txs = state.transactions || [];
   const totals = getEffectiveTotals(txs, state.transactionTotals);
-
-  // Auto-fetch if store has empty transactions and not currently fetching
-  if (txs.length === 0 && !isFetching) {
-    isFetching = true;
-    api
-      .getTransactions()
-      .then((res) => {
-        isFetching = false;
-        store.setState({
-          transactions: res.transactions || [],
-          transactionTotals: res.totals || null,
-          cfoInsights: res.cfoInsights || null,
-        });
-        renderTransactionsPage(mount);
-      })
-      .catch((err) => {
-        isFetching = false;
-        console.warn("[Transactions Auto-Fetch Notice]:", err.message);
-      });
-  }
 
   // Derive dynamic filter lists
   const currencies = Array.from(new Set(txs.map((t) => String(t.currency || "USD").toUpperCase())));
@@ -382,7 +361,9 @@ export function renderTransactionsPage(mount) {
         transactionTotals: res.totals || null,
         cfoInsights: res.cfoInsights || null,
       });
-      renderTransactionsPage(mount);
+      if (store.getState().route === "transactions") {
+        renderTransactionsPage(mount);
+      }
       showToast({ title: "Transactions Synced", message: `${res.transactions?.length || 0} records updated.`, type: "success" });
     } catch (err) {
       showToast({ title: "Sync Error", message: err.message, type: "error" });

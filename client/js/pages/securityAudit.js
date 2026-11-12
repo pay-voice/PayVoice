@@ -25,7 +25,6 @@ const LEDGER_PAGE_SIZE = 10;
 let lastSimResult = null;
 let lastBenchmarkReport = null;
 let lastRedTeamReport = null;
-let isLedgerFetching = false;
 
 export function renderSecurityAuditPage(mount) {
   // Capture search input focus state
@@ -39,23 +38,6 @@ export function renderSecurityAuditPage(mount) {
   const verify = state.ledgerVerification;
   const buyers = state.buyers || [];
   const hasWebAuthn = Boolean(window.PublicKeyCredential);
-
-  // Auto-fetch if ledger is empty on mount
-  if (ledger.length === 0 && !isLedgerFetching) {
-    isLedgerFetching = true;
-    Promise.all([api.getAuditLedger().catch(() => null), api.verifyAuditLedger().catch(() => null)])
-      .then(([ledgerRes, verifyRes]) => {
-        isLedgerFetching = false;
-        store.setState({
-          auditLedger: ledgerRes?.ledger || [],
-          ...(verifyRes ? { ledgerVerification: verifyRes } : {}),
-        });
-        renderSecurityAuditPage(mount);
-      })
-      .catch(() => {
-        isLedgerFetching = false;
-      });
-  }
 
   const statuses = Array.from(new Set(ledger.map((r) => r.status).filter(Boolean)));
   const blockedCount = ledger.filter((r) =>
@@ -377,7 +359,9 @@ export function renderSecurityAuditPage(mount) {
     try {
       const res = await api.verifyAuditLedger();
       store.setState({ ledgerVerification: res });
-      renderSecurityAuditPage(mount);
+      if (store.getState().route === "security") {
+        renderSecurityAuditPage(mount);
+      }
       showToast({
         title: res.valid ? "Audit Chain Pristine" : "Integrity Alert",
         message: res.valid ? `${res.totalRecords} blocks verified from Genesis.` : res.error,
@@ -401,7 +385,9 @@ export function renderSecurityAuditPage(mount) {
       lastSimResult = await api.simulateAttack(attackType);
       const ledgerRes = await api.getAuditLedger();
       store.setState({ auditLedger: ledgerRes.ledger || [] });
-      renderSecurityAuditPage(mount);
+      if (store.getState().route === "security") {
+        renderSecurityAuditPage(mount);
+      }
       showToast({
         title: lastSimResult.blocked ? "Attack Blocked by Firewall" : "Simulation Finished",
         message: lastSimResult.blockedBy || "Firewall rule triggered",
@@ -426,7 +412,9 @@ export function renderSecurityAuditPage(mount) {
     try {
       const res = await registerDevicePasskey();
       store.setState({ passkeyEnrolledId: res.credentialId });
-      renderSecurityAuditPage(mount);
+      if (store.getState().route === "security") {
+        renderSecurityAuditPage(mount);
+      }
       showToast({ title: "Passkey Enrolled", message: res.message || "FIDO2 credential registered.", type: "success" });
     } catch (err) {
       showToast({ title: "Enrollment Error", message: err.message, type: "error" });
@@ -443,7 +431,9 @@ export function renderSecurityAuditPage(mount) {
       await api.simulateTamper();
       const [ledgerRes, verRes] = await Promise.all([api.getAuditLedger(), api.verifyAuditLedger()]);
       store.setState({ auditLedger: ledgerRes.ledger || [], ledgerVerification: verRes });
-      renderSecurityAuditPage(mount);
+      if (store.getState().route === "security") {
+        renderSecurityAuditPage(mount);
+      }
       showToast({ title: "Simulated Bit-Flip Injected", message: "Verification now detects cryptographic break.", type: "warning" });
     } catch (err) {
       showToast({ title: "Tamper Error", message: err.message, type: "error" });
@@ -456,7 +446,9 @@ export function renderSecurityAuditPage(mount) {
       await api.restoreLedger();
       const [ledgerRes, verRes] = await Promise.all([api.getAuditLedger(), api.verifyAuditLedger()]);
       store.setState({ auditLedger: ledgerRes.ledger || [], ledgerVerification: verRes });
-      renderSecurityAuditPage(mount);
+      if (store.getState().route === "security") {
+        renderSecurityAuditPage(mount);
+      }
       showToast({ title: "Ledger Restored", message: "Pristine hash chain restored.", type: "success" });
     } catch (err) {
       showToast({ title: "Restore Error", message: err.message, type: "error" });
@@ -475,7 +467,9 @@ export function renderSecurityAuditPage(mount) {
       lastRedTeamReport = null;
       const ledgerRes = await api.getAuditLedger();
       store.setState({ auditLedger: ledgerRes.ledger || [] });
-      renderSecurityAuditPage(mount);
+      if (store.getState().route === "security") {
+        renderSecurityAuditPage(mount);
+      }
       showToast({
         title: "Benchmarks Complete",
         message: `${lastBenchmarkReport.passed}/${lastBenchmarkReport.totalTests} tests passed (${lastBenchmarkReport.executionTimeMs}ms).`,
@@ -503,7 +497,9 @@ export function renderSecurityAuditPage(mount) {
       lastBenchmarkReport = null;
       const ledgerRes = await api.getAuditLedger();
       store.setState({ auditLedger: ledgerRes.ledger || [] });
-      renderSecurityAuditPage(mount);
+      if (store.getState().route === "security") {
+        renderSecurityAuditPage(mount);
+      }
       showToast({
         title: "Live Red-Team Complete",
         message: `${lastRedTeamReport.summary?.blocked || 10}/${lastRedTeamReport.summary?.totalTrials || 10} attacks blocked (100% block rate).`,
@@ -533,7 +529,9 @@ export function renderSecurityAuditPage(mount) {
         killSwitch: { frozen: isNowFrozen, reason: res.reason || "", frozenAt: res.frozenAt || null },
         ...(ledgerRes ? { auditLedger: ledgerRes.ledger || [] } : {}),
       });
-      renderSecurityAuditPage(mount);
+      if (store.getState().route === "security") {
+        renderSecurityAuditPage(mount);
+      }
       showToast({
         title: isNowFrozen ? "Agent Frozen (Kill Switch Active)" : "Agent Operations Resumed",
         message: res.message || (isNowFrozen ? "All staging & execution suspended." : "Normal operations restored."),
@@ -573,7 +571,9 @@ export function renderSecurityAuditPage(mount) {
     try {
       const res = await api.getAuditLedger();
       store.setState({ auditLedger: res.ledger || [] });
-      renderSecurityAuditPage(mount);
+      if (store.getState().route === "security") {
+        renderSecurityAuditPage(mount);
+      }
       showToast({ title: "Ledger Synced", message: `${res.ledger?.length || 0} blocks up-to-date.`, type: "success" });
     } catch (err) {
       showToast({ title: "Refresh Error", message: err.message, type: "error" });

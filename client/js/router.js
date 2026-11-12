@@ -4,6 +4,7 @@
  */
 
 import { store } from "./store.js";
+import { escapeHtml } from "./utils.js";
 
 export const ROUTES = {
   overview: {
@@ -84,7 +85,7 @@ export function getRouteFromHash() {
 
 export function renderCurrentRoute() {
   const routeId = getRouteFromHash();
-  const routeMeta = ROUTES[routeId];
+  const routeMeta = ROUTES[routeId] || ROUTES.overview;
   store.setState({ route: routeId });
 
   // Update active nav item
@@ -109,7 +110,24 @@ export function renderCurrentRoute() {
 
   const renderer = pageRenderers.get(routeId);
   if (renderer) {
-    renderer(mount, routeMeta);
+    try {
+      renderer(mount, routeMeta);
+    } catch (err) {
+      console.error(`[Router Render Error in ${routeId}]:`, err);
+      mount.innerHTML = `
+        <div class="card" style="padding:2rem;">
+          <div class="alert alert-error">
+            <div class="alert-content">
+              <span class="alert-title">Rendering Error (${escapeHtml(routeMeta.title)})</span>
+              <span>${escapeHtml(err.message || "An unexpected error occurred while loading this view.")}</span>
+            </div>
+          </div>
+          <div style="margin-block-start:1rem;">
+            <button type="button" class="btn btn-primary" onclick="window.location.hash='#overview'">Return to Overview</button>
+          </div>
+        </div>
+      `;
+    }
   }
 
   // Close mobile sidebar drawer if open
@@ -126,4 +144,3 @@ export function initRouter() {
   window.addEventListener("hashchange", renderCurrentRoute);
   renderCurrentRoute();
 }
-

@@ -279,7 +279,9 @@ export function renderMoneyGuidePage(mount) {
         cfoInsights: txRes.cfoInsights || null,
         merchantInsights: insRes.insights || null,
       });
-      renderMoneyGuidePage(mount);
+      if (store.getState().route === "money-guide") {
+        renderMoneyGuidePage(mount);
+      }
       showToast({
         title: "Money Guide Recalculated",
         message: "Deterministic financial math & risk ratings updated.",

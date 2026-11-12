@@ -25,7 +25,6 @@ let statusFilter = "ALL";
 let sortField = "date_desc";
 let currentPage = 1;
 const PAGE_SIZE = 8;
-let isFetchingInvoices = false;
 
 const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -37,23 +36,6 @@ export function renderInvoicesPage(mount) {
   const searchCaretEnd = isSearchFocused ? activeEl.selectionEnd : null;
 
   const state = store.getState();
-
-  // Auto-fetch invoices and buyers if not loaded yet
-  if ((!state.invoices || state.invoices.length === 0) && !isFetchingInvoices) {
-    isFetchingInvoices = true;
-    Promise.all([api.listInvoices().catch(() => null), api.getBuyers().catch(() => null)])
-      .then(([invRes, buyersRes]) => {
-        isFetchingInvoices = false;
-        store.setState({
-          invoices: invRes?.invoices || [],
-          ...(buyersRes?.buyers ? { buyers: buyersRes.buyers } : {}),
-        });
-        renderInvoicesPage(mount);
-      })
-      .catch(() => {
-        isFetchingInvoices = false;
-      });
-  }
 
   const sessionInvoices = (state.invoices || []).map((inv) => ({
     ...inv,
@@ -326,7 +308,9 @@ export function renderInvoicesPage(mount) {
     try {
       const res = await api.listInvoices();
       store.setState({ invoices: res.invoices || [] });
-      renderInvoicesPage(mount);
+      if (store.getState().route === "invoices") {
+        renderInvoicesPage(mount);
+      }
       showToast({ title: "Invoices Updated", message: `${res.invoices?.length || 0} invoices synced.`, type: "success" });
     } catch (err) {
       showToast({ title: "Refresh Failed", message: err.message, type: "error" });
@@ -442,7 +426,11 @@ function openCreateInvoiceModal(mount) {
           store.setState({ currentStaged: staged });
           closeModal();
           openInvoicePreviewModal(staged, {
-            onExecuted: () => renderInvoicesPage(mount),
+            onExecuted: () => {
+              if (store.getState().route === "invoices") {
+                renderInvoicesPage(mount);
+              }
+            },
           });
         } catch (err) {
           if (btn) {
@@ -552,7 +540,13 @@ function openInvoiceDetailModal(inv, mount) {
       });
       document.getElementById("inv-det-auth")?.addEventListener("click", () => {
         closeModal();
-        openPasskeyAuthModal(inv._stagedRef, { onSuccess: () => renderInvoicesPage(mount) });
+        openPasskeyAuthModal(inv._stagedRef, {
+          onSuccess: () => {
+            if (store.getState().route === "invoices") {
+              renderInvoicesPage(mount);
+            }
+          },
+        });
       });
       document.getElementById("inv-det-remind")?.addEventListener("click", () => {
         const current = store.getState().remindersSent || {};
@@ -566,7 +560,9 @@ function openInvoiceDetailModal(inv, mount) {
         });
         showToast({ title: "Reminder Sent", message: `24h cooldown engaged for ${inv.invoiceId}.`, type: "success" });
         closeModal();
-        renderInvoicesPage(mount);
+        if (store.getState().route === "invoices") {
+          renderInvoicesPage(mount);
+        }
       });
       document.getElementById("inv-det-settle")?.addEventListener("click", async () => {
         const btn = document.getElementById("inv-det-settle");
@@ -585,7 +581,9 @@ function openInvoiceDetailModal(inv, mount) {
           store.setState({ invoices: updatedInvoices });
           showToast({ title: "Invoice Paid", message: `${inv.invoiceId} transitioned to PAID via OPGSP.`, type: "success" });
           closeModal();
-          renderInvoicesPage(mount);
+          if (store.getState().route === "invoices") {
+            renderInvoicesPage(mount);
+          }
         } catch (err) {
           showToast({ title: "Settlement Error", message: err.message, type: "error" });
           if (btn) {

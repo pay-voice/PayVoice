@@ -127,7 +127,9 @@ export function renderBuyersPage(mount) {
     try {
       const res = await api.getBuyers();
       store.setState({ buyers: res.buyers || [] });
-      renderBuyersPage(mount);
+      if (store.getState().route === "buyers") {
+        renderBuyersPage(mount);
+      }
       showToast({ title: "Buyer Vault Synced", type: "success" });
     } catch (err) {
       showToast({ title: "Sync Error", message: err.message, type: "error" });
