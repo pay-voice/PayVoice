@@ -1,7 +1,6 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import {
   encryptAes256Siv,
   decryptAes256Siv,
@@ -18,9 +17,8 @@ export {
   deriveVaultKeys,
 };
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const dataDir = path.resolve(__dirname, "../data");
+import { resolveDataDir } from "./dataDir.js";
+const dataDir = resolveDataDir();
 const vaultFilePath = path.join(dataDir, "vault.enc.json");
 
 const VAULT_SECRET = process.env.VAULT_SECRET || "payvoice-hackathon-secret-2026";

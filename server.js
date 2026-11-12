@@ -132,8 +132,15 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "client", "index.html"));
 });
 
-// Only listen when executed directly (not when imported in tests)
-if (process.env.NODE_ENV !== "test") {
+// Only listen when executed directly (not when imported in tests or serverless functions)
+const isServerless = Boolean(
+  process.env.NETLIFY ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT ||
+  process.env.VERCEL
+);
+
+if (process.env.NODE_ENV !== "test" && !isServerless) {
   app.listen(PORT, () => {
     console.log(`=======================================================`);
     console.log(`PayVoice Secure Financial Agent Server running!`);

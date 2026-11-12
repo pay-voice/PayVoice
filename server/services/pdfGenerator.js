@@ -2,13 +2,11 @@ import PDFDocument from "pdfkit";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { getAuditLedger } from "./auditLedger.js";
 import { classifyRbiPurposeCode } from "./moneyGuide.js";
+import { resolveDataDir } from "./dataDir.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const checkpointFilePath = path.resolve(__dirname, "../data/auditCheckpoints.json");
+const checkpointFilePath = path.join(resolveDataDir(), "auditCheckpoints.json");
 
 /**
  * Deterministically verify 100% mathematical parity between raw PayPal JSON line items

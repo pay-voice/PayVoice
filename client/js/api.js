@@ -223,15 +223,27 @@ export const api = {
     }
   },
 
-  // SSE Invoice Stream
+  // SSE Invoice Stream (closes cleanly on serverless hosts that do not hold open streams)
   subscribeInvoiceStream: (handlers = {}) => {
     if (!window.EventSource) return null;
     const es = new EventSource(`${API_BASE}/api/invoices/stream`);
-    if (handlers.onConnected) es.addEventListener("connected", (e) => handlers.onConnected(JSON.parse(e.data)));
+    let errorCount = 0;
+    if (handlers.onConnected) {
+      es.addEventListener("connected", (e) => {
+        errorCount = 0;
+        handlers.onConnected(JSON.parse(e.data));
+      });
+    }
     if (handlers.onStaged) es.addEventListener("invoice_staged", (e) => handlers.onStaged(JSON.parse(e.data)));
     if (handlers.onSent) es.addEventListener("invoice_sent", (e) => handlers.onSent(JSON.parse(e.data)));
     if (handlers.onPaid) es.addEventListener("invoice_paid", (e) => handlers.onPaid(JSON.parse(e.data)));
-    if (handlers.onError) es.onerror = handlers.onError;
+    es.onerror = (err) => {
+      errorCount += 1;
+      if (handlers.onError) handlers.onError(err);
+      if (errorCount >= 2) {
+        es.close();
+      }
+    };
     return es;
   },
 };

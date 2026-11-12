@@ -1,11 +1,9 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { resolveDataDir } from "./dataDir.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const dataDir = path.resolve(__dirname, "../data");
+const dataDir = resolveDataDir();
 const checkpointFilePath = path.join(dataDir, "auditCheckpoints.json");
 
 const CHECKPOINT_SECRET = process.env.CHECKPOINT_SECRET || "payvoice-immutable-checkpoint-2026";
