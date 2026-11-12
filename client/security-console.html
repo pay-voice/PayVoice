@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PayVoice: Secure Multilingual Financial Agent | PayPal AI Hackathon 2026</title>
+  <link rel="stylesheet" href="security-style.css" />
+</head>
+<body>
+  <div class="container">
+    <!-- Header & Merchant Profile -->
+    <header class="header">
+      <div class="brand-section">
+        <svg width="40" height="40" viewBox="0 0 127 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M38.7467 10.3502C38.7467 15.29 34.1861 21.1295 27.2961 21.1295H20.6583L20.3368 23.1871L18.7851 33.1072H10.5264L15.4912 1.16797H28.867C33.3679 1.16797 36.9159 3.68412 38.2134 7.17898C38.5811 8.16925 38.7678 9.23852 38.7467 10.3502Z" fill="#ffffff"/>
+          <path d="M43.5093 19.5338C42.5968 25.0728 37.8341 29.1167 32.2108 29.1167H27.6001L25.675 41.0944H17.4663L18.7831 33.1086L20.3347 23.1885L20.6562 21.1309H27.294C34.184 21.1309 38.7446 15.2914 38.7446 10.3516C38.7446 10.3516 38.7485 10.3516 38.7485 10.3535C42.1405 12.1009 44.1138 15.6439 43.5074 19.5338H43.5093Z" fill="#60CDFF"/>
+          <path d="M38.7466 10.3507C37.3278 9.60124 35.6048 9.15234 33.7298 9.15234H22.5333L20.6582 21.1301H27.296C34.186 21.1301 38.7466 15.2905 38.7466 10.3507Z" fill="#008CFF"/>
+        </svg>
+        <div class="brand-title">
+          <h1>PayVoice</h1>
+          <p>Indian MSME Cross-Border Exporter Portal &bull; PayPal AI Hackathon 2026</p>
+        </div>
+      </div>
+      <div class="exporter-credentials">
+        <span class="badge-tag">DGFT IEC: 0319088821</span>
+        <span class="badge-tag">GST LUT: Rule 96A Active</span>
+        <span class="badge-tag">OPGSP Pathway</span>
+        <span class="badge-tag pulse-green" id="sandbox-badge">🟢 Live Sandbox Connected</span>
+        <button class="btn-kill-switch" id="btn-kill-switch" title="Emergency Kill Switch: Freeze or Resume Agent">🛑 Freeze Agent</button>
+      </div>
+    </header>
+
+    <!-- Emergency Kill Switch Alert Banner -->
+    <div id="freeze-alert-banner" class="freeze-banner" style="display: none;">
+      <span>🚨 <strong>EMERGENCY KILL SWITCH ENGAGED:</strong> The PayVoice agent is currently FROZEN. All invoice creation, staging, and dispatching are suspended.</span>
+      <button id="btn-unfreeze-banner" class="btn-unfreeze-small">Resume Agent</button>
+    </div>
+
+    <!-- Top CFO Metrics Intelligence Bar -->
+    <div class="cfo-metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">
+          <span>Gross Foreign Inflows</span>
+          <span>🌐 USD/EUR/GBP</span>
+        </div>
+        <div class="metric-value" id="cfo-gross-val">$1,500.00</div>
+        <div class="metric-subtext" id="cfo-gross-sub">Across 4 verified export contracts</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">
+          <span>Estimated PayPal Fees</span>
+          <span>⚡ 4.4% + $0.30</span>
+        </div>
+        <div class="metric-value" id="cfo-fee-val">$67.00</div>
+        <div class="metric-subtext">Automated merchant fee reconciliation</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">
+          <span>Net INR Realization</span>
+          <span>🇮🇳 Live Calibrated FX</span>
+        </div>
+        <div class="metric-value metric-accent-inr" id="cfo-inr-val">₹1,24,530</div>
+        <div class="metric-subtext">Direct to Indian Bank Account via e-FIRC</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">
+          <span>OPGSP Cap Headroom</span>
+          <span>📜 $2,500 / Invoice</span>
+        </div>
+        <div class="metric-value metric-accent-cap" id="cfo-cap-val">$2,000.00</div>
+        <div class="metric-subtext">Statutory single invoice regulatory allowance</div>
+      </div>
+    </div>
+
+    <!-- Main Stage Grid -->
+    <div class="main-stage-grid">
+      <!-- Left Column: Voice Console, Staged Invoice, Buyers -->
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Card 1: Multilingual Voice & AI Agent Console -->
+        <div class="card">
+          <div class="card-title">
+            <h2>🎙️ Multilingual Financial Agent Console</h2>
+            <span class="badge-tag" style="background:#e0f2fe; color:#0369a1; border:none;" id="active-lang-badge">Marathi (मराठी)</span>
+          </div>
+
+          <div class="voice-console">
+            <!-- Language Bar -->
+            <div class="lang-selector-bar">
+              <button class="lang-btn active" data-lang="mr">मराठी (Marathi)</button>
+              <button class="lang-btn" data-lang="hi">हिंदी (Hindi)</button>
+              <button class="lang-btn" data-lang="en">English (US/UK)</button>
+            </div>
+
+            <!-- Big Mic Zone -->
+            <div class="mic-zone" id="mic-zone">
+              <button class="mic-button" id="mic-button" title="Click to speak">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                  <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+              </button>
+              <div class="mic-hint" id="mic-status-hint">
+                Tap microphone and speak naturally in Marathi, Hindi, or English
+              </div>
+            </div>
+
+            <!-- Live Transcript Input Bar -->
+            <div class="transcript-input-area">
+              <input
+                type="text"
+                id="transcript-input"
+                class="transcript-input"
+                placeholder="Or type voice command (e.g., 'Rahul la 200 dollars cha software project invoice pathav')..."
+              />
+              <button class="btn-primary" id="btn-process-transcript">
+                <span>Stage Invoice</span>
+                <span>⚡</span>
+              </button>
+            </div>
+
+            <!-- Quick Demo Chips -->
+            <div class="quick-chips-wrapper">
+              <h4>🎯 Live Judge Demo Utterances (Zero-Click Staging):</h4>
+              <div class="chips-container">
+                <button class="demo-chip" data-text="राहुलला २०० डॉलर्सचा सॉफ्टवेअर प्रोजेक्ट इनव्हॉईस पाठवा" data-lang="mr">
+                  🇲🇷 "राहुलला २०० डॉलर्सचा सॉफ्टवेअर प्रोजेक्ट इनव्हॉईस पाठवा"
+                </button>
+                <button class="demo-chip" data-text="Rahul la 200 dollars cha software project invoice pathav" data-lang="mr">
+                  🇲🇷 "Rahul la 200 dollars cha invoice pathav"
+                </button>
+                <button class="demo-chip" data-text="राहुल को 200 डॉलर का क्लाउड एपीआई बिल भेजो" data-lang="hi">
+                  🇮🇳 "राहुल को 200 डॉलर का क्लाउड एपीआई बिल भेजो"
+                </button>
+                <button class="demo-chip" data-text="Bill Elena 450 EUR for UI/UX Design Sprint" data-lang="en">
+                  🇪🇺 "Bill Elena 450 EUR for UI/UX Design Sprint"
+                </button>
+                <button class="demo-chip" data-text="Bill Oliver 350 GBP for Security Penetration Audit" data-lang="en">
+                  🇬🇧 "Bill Oliver 350 GBP for Security Penetration Audit"
+                </button>
+                <button class="demo-chip" data-text="Bill Akira 500 USD for Embedded Firmware Module" data-lang="en">
+                  🇯🇵 "Bill Akira 500 USD for Embedded Firmware Module"
+                </button>
+                <button class="demo-chip" data-text="Show my last 30 days encrypted statement" data-lang="en">
+                  📄 "Show my last 30 days encrypted statement"
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Staged Invoice Preview & Step-Up WebAuthn Execution -->
+        <div class="card" id="staged-card" style="display: none;">
+          <div class="card-title">
+            <h2>📋 Staged Cross-Border Invoice Preview</h2>
+            <span class="badge-tag" style="background:#fef3c7; color:#92400e; border:none;" id="staged-status-badge">Awaiting Biometric Authorization</span>
+          </div>
+
+          <div class="staged-preview-box">
+            <div class="staged-header">
+              <div class="staged-buyer-info">
+                <h3 id="preview-buyer-name">Rahul Mehta</h3>
+                <p id="preview-buyer-details">BUYER_RAHUL_01 &bull; TechGlobal Corp (US) &bull; United States</p>
+              </div>
+              <div class="staged-amount-box">
+                <div class="amount" id="preview-amount">$200.00 USD</div>
+                <div class="inr-tag" id="preview-inr">~₹17,370 INR Realization</div>
+              </div>
+            </div>
+
+            <div class="staged-line-items">
+              <div>
+                <strong id="preview-item">Cloud API Development</strong>
+                <p style="font-size:12px; color:var(--text-muted);" id="preview-quantity">Sprint Milestone 1 &bull; 1 Milestone</p>
+              </div>
+              <span class="badge-tag" style="background:#e2e8f0; color:#334155; font-size:11px;">Standard Export Term: Net 15</span>
+            </div>
+
+            <!-- Compliance Stamping Block -->
+            <div class="staged-compliance-pills">
+              <span class="compliance-pill pill-rbi" id="preview-rbi">RBI Export Code: P0802 (Software Consultancy)</span>
+              <span class="compliance-pill pill-lut" id="preview-lut">GST LUT: Rule 96A Zero-Rated (No IGST)</span>
+              <span class="compliance-pill pill-hash" id="preview-hash" title="Payload SHA-256 Digest">SHA-256: 8a4f...e91c</span>
+            </div>
+
+            <!-- 4-Tier Dynamic Risk Assessment Meter -->
+            <div class="risk-meter-container">
+              <div class="risk-meter-header">
+                <span class="risk-meter-title">🛡️ 4-Tier Dynamic Risk Assessment Meter</span>
+                <span class="badge-tag" id="preview-risk-badge" style="background:#dcfce7; color:#15803d; border:none;">Level 2 (Standard Risk)</span>
+              </div>
+              <div class="risk-bar-track">
+                <div class="risk-bar-fill" id="preview-risk-bar" style="width: 25%; background: #10b981;"></div>
+              </div>
+              <div class="risk-meter-sub">
+                <span id="preview-lookalike-pill" class="risk-sub-pill pill-ok">✅ Lookalike Name: Authentic</span>
+                <span id="preview-deviation-pill" class="risk-sub-pill pill-ok">✅ Amount Deviation: Normal</span>
+                <span id="preview-risk-score" class="risk-sub-pill">Score: 25/100</span>
+              </div>
+            </div>
+
+            <!-- Passkey Execution Bar -->
+            <div class="passkey-action-bar">
+              <button class="btn-passkey" id="btn-execute-passkey">
+                <span>🔐 Authorize & Send Invoice with Biometric Passkey</span>
+              </button>
+              <button class="btn-qr-handoff" id="btn-qr-handoff" type="button">
+                <span>📱 Mobile Phone Approval Handoff (QR)</span>
+              </button>
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <label class="toggle-group">
+                  <input type="checkbox" id="check-auto-settle" checked />
+                  <span>Auto-settle to PAID in 5 seconds (Live Video Demo Mode)</span>
+                </label>
+                <button id="btn-speech-repeat" style="background:none; border:none; color:var(--primary-color); font-size:12px; cursor:pointer; text-decoration:underline;">
+                  🔊 Replay Voice Read-Back
+                </button>
+              </div>
+            </div>
+
+            <!-- PC-to-Mobile QR Handoff Modal -->
+            <div id="qr-handoff-modal" class="qr-modal" style="display: none;">
+              <div class="qr-card">
+                <div class="qr-card-header">
+                  <h4>📱 Mobile Phone Biometric Handoff</h4>
+                  <button type="button" id="btn-close-qr" class="qr-close-btn">&times;</button>
+                </div>
+                <p style="font-size:12px; color:var(--text-muted);">
+                  Scan this QR code with your mobile camera to approve via phone Touch ID / Face ID WebAuthn:
+                </p>
+                <div class="qr-graphic-box" id="qr-graphic-box">
+                  <!-- SVG QR rendered dynamically -->
+                </div>
+                <div class="qr-url-display" id="qr-url-display">
+                  <code>https://payvoice.io/auth/mobile?challenge=...</code>
+                </div>
+                <span class="badge-tag pulse-green" style="font-size:11px;">Listening for Mobile Passkey Assertion...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Pre-Seeded International Client Vault -->
+        <div class="card">
+          <div class="card-title">
+            <h2>🏢 Allowlisted International Buyers (AES-256-GCM Vault)</h2>
+            <span class="badge-tag" style="background:#f1f5f9; color:#475569;">4 Contracts Active</span>
+          </div>
+          <div class="buyer-grid" id="buyer-grid">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Live Invoicing Lifecycle Timeline, PDF Statement, Audit Ledger -->
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Card 4: Real-Time Lifecycle Timeline Tracker -->
+        <div class="card">
+          <div class="card-title">
+            <h2>⚡ Live Invoicing Lifecycle Tracker</h2>
+            <span class="badge-tag pulse-green" id="live-invoice-badge">STANDBY</span>
+          </div>
+
+          <div class="lifecycle-timeline" id="lifecycle-timeline">
+            <div class="timeline-step" id="step-voice">
+              <div class="step-bullet">1</div>
+              <div class="step-content">
+                <h4>Multilingual Voice Capture & PII Tokenization</h4>
+                <p>Intent extracted, buyer de-identified to vault token</p>
+              </div>
+            </div>
+
+            <div class="timeline-step" id="step-policy">
+              <div class="step-bullet">2</div>
+              <div class="step-content">
+                <h4>Deterministic Money Guide & RBI Code Stamping</h4>
+                <p>$2,500 OPGSP cap checked, RBI purpose code stamped</p>
+              </div>
+            </div>
+
+            <div class="timeline-step" id="step-auth">
+              <div class="step-bullet">3</div>
+              <div class="step-content">
+                <h4>WebAuthn Hardware Passkey Signature</h4>
+                <p>FIDO2 biometric proof bound to payload SHA-256 hash</p>
+              </div>
+            </div>
+
+            <div class="timeline-step" id="step-draft">
+              <div class="step-bullet">4</div>
+              <div class="step-content">
+                <h4>PayPal Sandbox Draft Invoice Created</h4>
+                <p>Guarded @paypal/agent-toolkit create_invoice ticket executed</p>
+              </div>
+            </div>
+
+            <div class="timeline-step" id="step-sent">
+              <div class="step-bullet">5</div>
+              <div class="step-content">
+                <h4>Dispatched to International Buyer via Email</h4>
+                <p>Guarded send_invoice executed atomically (Zero manual clicks)</p>
+              </div>
+            </div>
+
+            <div class="timeline-step" id="step-paid">
+              <div class="step-bullet">6</div>
+              <div class="step-content">
+                <h4>Cross-Border Inward Remittance Settled (PAID)</h4>
+                <p>OPGSP remittance completed &bull; Auto e-FIRC ready</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 10px; display: flex; gap: 8px;">
+            <button class="btn-primary" id="btn-manual-settle" style="width:100%; display:none; background:#059669;">
+              ✅ Simulate Buyer Settlement (Transition to PAID)
+            </button>
+          </div>
+        </div>
+
+        <!-- Card 5: Encrypted PDF Accounting Statements -->
+        <div class="card">
+          <div class="card-title">
+            <h2>📑 Encrypted PDF Accounting Statement</h2>
+            <span class="badge-tag" style="background:#ede9fe; color:#6d28d9;">CA/GST Rule 96A</span>
+          </div>
+          <p style="font-size:13px; color:var(--text-muted);">
+            Generates a password-protected PDF statement formatted with export line items, deterministic fee reconciliations, and the immutable hash chain root.
+          </p>
+          <div style="background:#f8fafc; padding:12px; border-radius:10px; border:1px solid var(--border-color); font-size:12px; color:#334155;">
+            <strong>Default Security Unlock PIN:</strong> <code>PAYVOICE2026</code>
+          </div>
+          <button class="btn-primary" id="btn-download-pdf" style="background:var(--primary-dark);">
+            <span>Download Encrypted Statement (PDF)</span>
+            <span>🔒</span>
+          </button>
+        </div>
+
+        <!-- Card 6: Sequential Cryptographic Audit Ledger Stream -->
+        <div class="card">
+          <div class="card-title">
+            <h2>📜 Immutable Sequential Audit Ledger</h2>
+            <button id="btn-verify-ledger" style="background:none; border:none; color:var(--primary-color); font-size:12px; font-weight:700; cursor:pointer;">
+              Verify Chain Integrity 🛡️
+            </button>
+          </div>
+          <div class="audit-stream-box" id="audit-stream-box">
+            <!-- Dynamic stream rows -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="security-app.js"></script>
+</body>
+</html>

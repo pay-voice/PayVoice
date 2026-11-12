@@ -273,8 +273,9 @@ router.get("/redteam", async (req, res) => {
  */
 router.post("/kill-switch", (req, res) => {
   try {
-    const { frozen, reason } = req.body || {};
-    const effectiveFrozen = typeof frozen === "boolean" ? frozen : !getAgentFreezeState().frozen;
+    const { frozen, freeze, reason } = req.body || {};
+    const inputFrozen = typeof frozen === "boolean" ? frozen : typeof freeze === "boolean" ? freeze : undefined;
+    const effectiveFrozen = typeof inputFrozen === "boolean" ? inputFrozen : !getAgentFreezeState().frozen;
     const effectiveReason = reason || (effectiveFrozen ? "Emergency Kill Switch Activated by Security Operator" : "Agent Resumed by Security Operator");
 
     const state = setAgentFreezeState(effectiveFrozen, effectiveReason);
@@ -289,7 +290,10 @@ router.post("/kill-switch", (req, res) => {
 
     res.json({
       success: true,
-      ...state,
+      frozen: state.frozen,
+      agentFrozen: state.frozen,
+      reason: state.reason,
+      frozenAt: state.frozenAt,
       message: state.frozen
         ? "Agent has been FROZEN. All invoice staging and execution requests are blocked."
         : "Agent has been UNFROZEN. Normal operations resumed.",
@@ -304,9 +308,13 @@ router.post("/kill-switch", (req, res) => {
  * Returns current freeze state of the agent
  */
 router.get("/kill-switch", (req, res) => {
+  const state = getAgentFreezeState();
   res.json({
     success: true,
-    ...getAgentFreezeState(),
+    frozen: state.frozen,
+    agentFrozen: state.frozen,
+    reason: state.reason,
+    frozenAt: state.frozenAt,
   });
 });
 

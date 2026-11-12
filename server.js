@@ -21,7 +21,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 8888;
+const PORT = process.env.PORT || 3000;
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || "";
 const PAYPAL_API_BASE = process.env.PAYPAL_API_BASE || "https://api-m.sandbox.paypal.com";
 
@@ -128,6 +128,16 @@ app.get("/api/config", (req, res) => {
 });
 
 // Fallback to client/index.html
+// Dedicated route for Shoury's Security Console
+app.get(["/security-console", "/security-console.html"], (req, res) => {
+  res.sendFile(path.join(__dirname, "client", "security-console.html"));
+});
+
+// Direct alias for /api/insights
+app.get("/api/insights", (req, res) => {
+  res.redirect(307, "/api/transactions/insights");
+});
+
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "client", "index.html"));
 });
