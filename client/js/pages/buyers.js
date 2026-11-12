@@ -93,6 +93,11 @@ export function renderBuyersPage(mount) {
               <div style="font-size:12px;color:var(--color-text-secondary);">
                 Default Contract: <strong>${escapeHtml(b.defaultItem || "Cloud API Development")}</strong> (${formatCurrency(b.defaultAmount || 200, b.currency)})
               </div>
+              ${
+                b.cooldownUntil && new Date(b.cooldownUntil) > new Date()
+                  ? `<div><span class="badge badge-warning">30-Min New-Payee Cool-Down Active</span></div>`
+                  : ""
+              }
 
               <div style="display:flex;gap:8px;margin-top:auto;">
                 <button type="button" class="btn btn-secondary btn-sm" style="flex:1;" data-buyer-detail="${escapeHtml(b.buyerToken)}">Inspect</button>

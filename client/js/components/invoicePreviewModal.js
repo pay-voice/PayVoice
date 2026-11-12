@@ -106,6 +106,15 @@ export function openInvoicePreviewModal(stagedData, { onExecuted, onRestaged } =
             <span><strong>RBI Purpose Code & GST LUT</strong> (${escapeHtml(card.rbiPurposeCode)})</span>
             <span class="badge badge-purple">${escapeHtml(card.rbiPurposeCode)}</span>
           </div>
+          ${
+            card.levelLabel
+              ? `
+          <div class="policy-check-row">
+            <span><strong>4-Tier Risk Assessment</strong> (Score ${Number(card.riskScore ?? 25)}/100${card.amountDeviationWarning ? ` &bull; ${escapeHtml(card.deviationRatio || ">2")}x baseline` : ""})</span>
+            <span class="badge ${Number(card.riskScore ?? 25) > 75 ? "badge-error" : Number(card.riskScore ?? 25) > 30 ? "badge-warning" : "badge-success"}">${escapeHtml(card.levelLabel)}</span>
+          </div>`
+              : ""
+          }
         </div>
 
         <div>

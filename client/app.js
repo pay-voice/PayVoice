@@ -146,7 +146,7 @@ function initShellControls() {
 
 async function loadInitialData() {
   try {
-    const [configRes, txRes, insRes, invRes, buyersRes, ledgerRes, verifyRes] = await Promise.all([
+    const [configRes, txRes, insRes, invRes, buyersRes, ledgerRes, verifyRes, killRes] = await Promise.all([
       api.getConfig().catch(() => null),
       api.getTransactions().catch(() => null),
       api.getMerchantInsights().catch(() => null),
@@ -154,6 +154,7 @@ async function loadInitialData() {
       api.getBuyers().catch(() => null),
       api.getAuditLedger().catch(() => null),
       api.verifyAuditLedger().catch(() => null),
+      api.getKillSwitch().catch(() => null),
     ]);
 
     if (configRes) {
@@ -178,8 +179,10 @@ async function loadInitialData() {
       buyers: buyersRes?.buyers || [],
       auditLedger: ledgerRes?.ledger || [],
       ledgerVerification: verifyRes || null,
+      killSwitch: killRes ? { frozen: Boolean(killRes.frozen), reason: killRes.reason || "", frozenAt: killRes.frozenAt || null } : { frozen: false, reason: "", frozenAt: null },
     });
 
+    renderKillSwitchBanner();
     renderCurrentRoute();
   } catch (err) {
     showToast({
@@ -189,6 +192,58 @@ async function loadInitialData() {
     });
   }
 }
+
+function renderKillSwitchBanner() {
+  const main = document.getElementById("page-mount")?.parentElement;
+  if (!main) return;
+  let banner = document.getElementById("global-freeze-banner");
+  const ks = store.getState().killSwitch;
+
+  if (!ks?.frozen) {
+    banner?.remove();
+    return;
+  }
+
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "global-freeze-banner";
+    banner.className = "alert alert-error";
+    banner.setAttribute("role", "alert");
+    main.insertBefore(banner, document.getElementById("page-mount"));
+  }
+
+  banner.innerHTML = `
+    <div class="alert-content" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        <span class="alert-title">Emergency Kill Switch Active ? Agent Frozen</span>
+        <span>All invoice staging and execution requests are suspended${ks.reason ? ` (${escapeHtml(ks.reason)})` : ""}.</span>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" id="global-resume-agent-btn">Resume Agent</button>
+    </div>
+  `;
+
+  document.getElementById("global-resume-agent-btn")?.addEventListener("click", async () => {
+    try {
+      const res = await api.toggleKillSwitch(false, "Resumed by operator via emergency banner");
+      const ledgerRes = await api.getAuditLedger().catch(() => null);
+      store.setState({
+        killSwitch: { frozen: Boolean(res.frozen), reason: res.reason || "", frozenAt: res.frozenAt || null },
+        ...(ledgerRes ? { auditLedger: ledgerRes.ledger || [] } : {}),
+      });
+      renderKillSwitchBanner();
+      if (store.getState().route === "security") renderCurrentRoute();
+      showToast({ title: "Agent Resumed", message: "Normal PayVoice operations restored.", type: "success" });
+    } catch (err) {
+      showToast({ title: "Kill Switch Error", message: err.message, type: "error" });
+    }
+  });
+}
+
+store.subscribe((_state, patchObj) => {
+  if ("killSwitch" in patchObj) {
+    renderKillSwitchBanner();
+  }
+});
 
 function initSseConnection() {
   api.subscribeInvoiceStream({

@@ -828,6 +828,13 @@ async function processTranscript(mount, rawText) {
     renderVoiceAssistantPage(mount);
   } catch (err) {
     currentState = "failed";
+    if (err.status === 423 || err.code === "AGENT_FROZEN_BY_KILL_SWITCH") {
+      api.getKillSwitch().then((ks) => {
+        store.setState({ killSwitch: { frozen: Boolean(ks.frozen), reason: ks.reason || "", frozenAt: ks.frozenAt || null } });
+      }).catch(() => {
+        store.setState({ killSwitch: { frozen: true, reason: err.message, frozenAt: new Date().toISOString() } });
+      });
+    }
     lastError = {
       title: err.code || "Voice Staging Blocked",
       message: err.message || "Validation or firewall policy blocked this request.",

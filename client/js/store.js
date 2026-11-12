@@ -43,6 +43,7 @@ const initialState = {
   buyers: [],
   auditLedger: [],
   ledgerVerification: null,
+  killSwitch: { frozen: false, reason: "", frozenAt: null },
 
   // Active workflow state
   currentStaged: null,

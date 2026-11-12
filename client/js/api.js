@@ -172,6 +172,12 @@ export const api = {
   runLifecycleTrace: () => apiRequest("/api/security/lifecycle-trace", { timeoutMs: 25000 }),
   exportAuditBundle: () => apiRequest("/api/security/audit-bundle"),
   runRedTeamSuite: () => apiRequest("/api/security/redteam", { timeoutMs: 30000 }),
+  getKillSwitch: () => apiRequest("/api/security/kill-switch"),
+  toggleKillSwitch: (frozen, reason = "") =>
+    apiRequest("/api/security/kill-switch", {
+      method: "POST",
+      body: { frozen, reason },
+    }),
 
   // Encrypted PDF Statements (POST binary blob + cryptographic headers)
   generateStatementPdf: async ({ dateRange = "Last 30 Days", password = "PAYVOICE2026", transactions = undefined }) => {

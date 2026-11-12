@@ -51,6 +51,8 @@ export function renderSecurityAuditPage(mount) {
     .slice()
     .reverse();
 
+  const isFrozen = Boolean(state.killSwitch?.frozen);
+
   mount.innerHTML = `
     <div class="page-header">
       <div class="page-header-copy">
@@ -58,6 +60,9 @@ export function renderSecurityAuditPage(mount) {
         <p>FIDO2 WebAuthn posture, prompt-injection firewall & tamper-evident SHA-256 hash chain</p>
       </div>
       <div class="page-header-actions">
+        <button type="button" class="btn ${isFrozen ? "btn-primary" : "btn-danger"}" id="sec-kill-switch-btn">
+          ${isFrozen ? "Resume Agent" : "Emergency Kill Switch"}
+        </button>
         <button type="button" class="btn btn-secondary" id="sec-export-bundle-btn">Export Audit Bundle</button>
         <button type="button" class="btn btn-primary" id="sec-verify-chain-btn">Verify Hash Chain</button>
       </div>
@@ -356,6 +361,29 @@ export function renderSecurityAuditPage(mount) {
       showToast({ title: "Benchmark Error", message: err.message, type: "error" });
       btn.disabled = false;
       btn.textContent = "Run Automated Benchmarks";
+    }
+  });
+
+  document.getElementById("sec-kill-switch-btn")?.addEventListener("click", async () => {
+    const nextFrozen = !Boolean(store.getState().killSwitch?.frozen);
+    try {
+      const res = await api.toggleKillSwitch(
+        nextFrozen,
+        nextFrozen ? "Emergency freeze toggled from Security & Audit console" : "Agent resumed from Security & Audit console"
+      );
+      const ledgerRes = await api.getAuditLedger().catch(() => null);
+      store.setState({
+        killSwitch: { frozen: Boolean(res.frozen), reason: res.reason || "", frozenAt: res.frozenAt || null },
+        ...(ledgerRes ? { auditLedger: ledgerRes.ledger || [] } : {}),
+      });
+      renderSecurityAuditPage(mount);
+      showToast({
+        title: res.frozen ? "Agent Frozen (Kill Switch Active)" : "Agent Operations Resumed",
+        message: res.message,
+        type: res.frozen ? "warning" : "success",
+      });
+    } catch (err) {
+      showToast({ title: "Kill Switch Error", message: err.message, type: "error" });
     }
   });
 
